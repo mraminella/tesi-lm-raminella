@@ -1,0 +1,97 @@
+\chapter{Dataset e training} \label{dataset}
+In questo capitolo si andrà a vedere il design architetturale della parte che si occupa di generare il dataset e il training della rete neurale. Si vedrà nel dettaglio una sua parte, i nuovi dataset generati e i risultati dei training effettuati con quei dataset. Nella seguente figura si ha uno schema rappresentativo della prima parte, che si occupa della realizzazione del dataset. Ogni parte all’interno dell’architettura è racchiusa in un blocco che rappresenta quale tecnologia è stata utilizzata per la sua realizzazione.
+\svg
+{Charts/DATASET0.pdf_tex}
+{Schema architetturare generazione dataset. I cilindri rappresentano basi di dati, i blocchi gialli sono processi di trasformazione dei dati. Ogni elemento dell'architettura realizzata si trova in un piano che indica la tecnologia utilizzata per esso, tranne la sorgente dato che è del cliente e viene considerata esterna. Su Script abbiamo dei script UNIX, su InfluxDB ogni cilindro è un database diverso, su Beam/Dataflow ogni blocco è una pipeline differente, infine su BigQuery il Dataset è memorizzato su una propria tabella. }
+{fig:dataset0}
+\section{Ingestion}\label{ingestion}
+Per poter realizzare un progetto di Data Science utilizzando i dati provenienti dai sistemi del cliente è necessario effettuare la \textit{ingestion} di questi dati in un \textit{repository} accessibile in base alle necessità, conformemente al modello di Data Warehouse \cite{kimball_ross_2013}. Questo perché in fase di creazione di un dataset è necessario accedere rapidamente a una ampia porzione dei dati, operazione che normalmente non è ottimizzata nei sistemi dedicati alla produzione e alla operatività nominale dei sistemi. I dati dello SCADA e delle precipitazioni meteo vengono memorizzati in due database differenti.
+\svg
+{Charts/DATASET1.pdf_tex}
+{Ingestion dei dati grezzi. I dati di SCADA e di precipitazioni meteo provengono in formati diversi e hanno campi diversi, quindi vengono salvati in database differenti.}
+{fig:dataset1}
+\subsection{InfluxDB}\label{influx}
+Come si è visto, i dati di telemetrie dei sensori e del meteo sono serie temporali. Il modello di rete neurale è basato su questo tipo di dato, anche se ha requisiti specifici riguardanti il formato. È stato individuato e utilizzato un database particolare, realizzato appositamente per trattare esclusivamente le serie temporali, il quale offre già alcune trasformazioni specifiche ad esse. Le informazioni che vengono memorizzate al suo interno, infatti, rimangono legate al proprio timestamp. Il timestamp è l’istante in cui un certo dato è stato prodotto. In una serie temporale avremo una serie di campioni, ognuno con il proprio timestamp. 
+Le astrazioni che offre InfluxDB sono:
+\begin{itemize}
+	\item Database
+	\item Measurement
+	\item Tag
+\end{itemize}
+Database e Measurement potrebbero essere considerati gli analoghi, rispettivamente, di un database e una tabella di DB comune. Tuttavia, all’interno di un Measurement, si ha possibilità di inserire solo dati telemetrici, distinti tramite il Tag. Il Tag è quindi la chiave primaria all’interno di ogni Measurement. Una caratteristica importante di InfluxDB è che per ogni Tag può esistere al più una sola misura in un determinato istante. Se per qualche motivo si provano a scrivere due misure diverse dello stesso tag in uno stesso istante, rimarrà in memoria solo l’ultimo valore scritto.
+\subsection{Ingestion su InfluxDB}
+La fase preliminare di ingestione su InfluxDB è realizzata con script Unix che filtrano i dati dei sensori dallo SCADA e del meteo precipitazioni dell’estate 2018. Viene realizzato un Database per memorizzare i dati grezzi. Per i dati dello SCADA viene realizzato un Measurement con i dati grezzi dei sensori. Ogni sensore è identificato da un proprio “TAG”, che corrisponde al Tag utilizzato come chiave primaria del Measurement. Avremo quindi un Measurement con tutte le telemetrie distinte dei sensori grezzi. I dati del meteo vengono memorizzati in un altro Measurement, utilizzando come Tag:
+\begin{itemize}
+	\item Latitudine
+	\item Longitudine
+	\item Tipo di previsione (a 40 o 60 minuti).
+\end{itemize} Si ha quindi un Measurement contenente le serie temporali distinte per tutti i punti della regione presa in considerazione.
+\section{Campionamento e aggregazione}
+Come visto in precedenza, l’architettura previsionale prevede di avere un timestep di tutti i dati ogni minuto. Questo significa che per tutte le serie temporali in analisi si deve avere un campione ogni minuto, altrimenti non saremo in grado di alimentare correttamente gli input della rete neurale. Per ottenere questo risultato, è necessario eseguire un ricampionamento, dal momento che dopo l’ingestion i dati grezzi hanno campioni a frequenza arbitraria. Esso viene eseguito con una tecnica nota in telecomunicazioni ed elettronica come Sample and Hold \cite{kefauver_patschke_2007}. Questa tecnica prevede di realizzare campioni a un intervallo predefinito a partire da un dato segnale. Il valore di ciascun campione sarà determinato dall’ultimo valore letto per quel segnale.
+\svg
+{Charts/DATASET2.pdf_tex}
+{Ricampionamento dei dati grezzi. I sensori vengono campionati ogni 15 secondi, il meteo viene direttamente campionato ogni minuto. }
+{fig:dataset2}
+Nella figura sotto si vede l’esempio dell’applicazione della Sample and Hold su un segnale, volendo ottenere campioni ad intervalli di 15 secondi. Sopra si ha una lettura alle 12:20:15 di valore 334. Alle 12:21:17, un’altra lettura di valore 329. Nella figura sotto abbiamo l’uscita dello stesso segnale dopo il campionamento. Ogni 15 secondi vi è un campione, che contiene l’ultimo valore aggiornato all’istante di campionamento. Dato che la lettura alle 12:20:15 avviene allo stesso istante in cui avviene il campionamento, il nuovo valore si riflette sul campione successivo delle 12:20:30. La lettura delle 12:21:17 si riflette sul successivo campione delle 12:21:30.
+\img[height=6cm]
+{Imgs/samplehold1.png}
+{Dati grezzi del segnale. Si considera un intervallo dalle 12:20:00 alle 12:21:40. Si vedono due letture, una alle 12:20:15, una alle 12:21:28, distinguibili dai puntini verdi.}
+{fig:samplehold1}
+\img[height=6cm]
+{Imgs/samplehold2.png}
+{Lo stesso segnale dopo Sample and Hold. I campioni sono a intervalli fissi di 15 secondi: il primo è alle 12:20:00, il secondo alle 12:20:15, e così via. Il valore di ciascun campione è determinato dal valore della lettura più recente: alle 12:20:00 si ha il valore (non visibile nella figura sopra) della lettura precedente, che persiste fino alle 12:20:30, in cui si ha il valore letto più recentemente, e così via.}
+{fig:samplehold2}
+\subsection{Campionamento}\label{sample}
+\subsubsection{Telemetrie dei sensori}
+Per quanto riguarda le telemetrie dei sensori, viene eseguito un primo ricampionamento ad intervalli di 15 secondi. Il cliente ha assicurato che ciascun segnale in analisi varia con frequenza non superiore ai 30 secondi, viene di conseguenza applicato il teorema di Shannon \cite{calandrino_chiani_2002} che richiede di campionare al doppio della frequenza massima del segnale di ingresso per evitare fenomeni di aliasing del segnale.
+In fase di studio e preparazione della rete previsionale, questa operazione viene realizzata sfruttando InfluxDB, che è in grado di realizzare autonomamente questa tecnica. Nella seguente figura si ha la query che viene realizzata in fase di ingestion considerando telemetrie dal 31-08-2018 al 04-09-2018. Per ottenere tutti i segnali grezzi campionati secondo le specifiche, si usa la combinazione di due predicati specifici di InfluxDB:
+\begin{itemize}
+	\item group by time(15s)
+	\subitem Raggruppa le letture in intervalli di 15 secondi
+	\item fill(previous)
+	\subitem Gli intervalli vuoti vengono riempiti con il valore più recente
+\end{itemize}
+\img[height=6cm]
+{Imgs/influx1.png}
+{Query di Influx che include il predicato necessario a campionare ogni 15 secondi con metodo Sample and Hold. }
+{fig:influx1}
+\subsubsection{Dati Meteo}
+Come si è visto su su \ref{sectionmeteo}, i dati del meteo provengono con previsioni a 20, 40 e 60 minuti, tuttavia solo le previsioni a 40 e 60 minuti vengono fornite con un anticipo ragionevole. In fase di preparazione del dataset, vengono combinati i dati previsionali a 40 e 60 minuti, conservando solamente gli intervalli validi delle previsioni a 40 minuti combinandoli con i dati previsionali a 60 minuti. Poi viene eseguito un ricampionamento con la tecnica di sample and hold già utilizzata per le telemetrie. In questo caso, il ricampionamento viene eseguito direttamente a 1 minuto, dal momento che la frequenza dei campioni del meteo è inferiore a 2 minuti.
+\img[height=6cm]
+{Imgs/meteo1.png}
+{Combinazione dei dati previsionali a 40 e 60 minuti: vengono conservate solo le previsioni valide. }
+{fig:meteo1}
+\subsection{Aggregazione e standardizzazione}
+L’aggregazione consiste nell’elaborazione dei segnali campionati ottenuti per ottenere una rappresentazione corretta nella forma desiderata, ovvero un campione ogni minuto. Sono coinvolti i segnali delle telemetrie dei sensori, in seguito al campionamento a 15 secondi, altrimenti si perderebbe buona parte dell’informazione andando a trascurare l’andamento delle letture. Le telemetrie e i dati del meteo hanno domini di valori e distribuzioni statistiche fra loro ampiamente differenti, essi vengono riportati tutti alla stessa distribuzione statistica e allo stesso dominio, tramite un procedimento chiamato standardizzazione \cite{ross_2014}. Questo è necessario perché le reti neurali, per funzionare correttamente, hanno bisogno che i dati in ingresso siano rapportati agli stessi domini e alle stesse distribuzioni statistiche \cite{aggarwal}.
+\svg
+{Charts/DATASET4.pdf_tex}
+{Aggregazione e standardizzazione. Per i dati dei sensori viene calcolata la media (per i segnali continui) o la moda (per i segnali discreti) per calcolare il valore ogni minuto. Sia per i sensori che per i dati meteo si effettua la standardizzazione. }
+{fig:dataset4}
+Per i segnali discreti viene calcolato il valore medio nell’intervallo di ogni minuto con la regola del trapezio \cite{wikipedia_2019}, che fornisce un’approssimazione del valore integrale in un intervallo definito. In questo modo si ottiene un valore discreto del segnale per ogni minuto. Per quanto riguarda i segnali a valore binario, invece, viene mantenuta la moda \cite{ross_2014}, ovvero il valore più frequente nell’intervallo di un minuto.
+\svg
+{Charts/DATASET3.pdf_tex}
+{Aggregazione telemetrie sensori. Per i segnali discreti (o digitali) viene calcolata la moda nel corso del minuto. Per i segnali continui (o analogici) viene calcolata la media con la regola del trapezio. }
+{fig:dataset3}
+Nel corso dello stesso processo vengono anche calcolate le statistiche per ciascuna serie temporale, ovvero la media e la varianza, per poter poi standardizzare tutti i valori in ciascuna serie temporale.
+Trattandosi queste ultime di operazioni con grande richiesta computazionale, che InfluxDB non è in grado di eseguire direttamente, si è scelto di utilizzare una piattaforma di processamento dei dati in grado di garantire scalabilità. Nel caso specifico è stato utilizzato Apache Beam, una astrazione a più alto livello del paradigma Map/Reduce di Hadoop, sfruttando l’esecuzione in cloud su Google Dataflow (vedi \ref{dataflow}). Si andranno a vedere alcuni dettagli di Beam nella discussione dell’architettura di realizzazione dei dati di training, realizzata utilizzando gli stessi strumenti.
+\subsection{Data augmentation}\label{dataaugmentation}
+%% questa tecnica si chiama Time Lag. Come riferimento ho preso "Time Series Analisys" di William S. Wei, Addison Weasley, 1190.
+% il timelag è data augmentation, la sliding window è un modo per fare smoothing
+I dati delle telemetrie e del meteo vengono riuniti per formare il dataset. Come visto nel primo capitolo, l’architettura della rete neurale previsionale prevede di analizzare complessivamente l’andamento delle telemetrie in una finestra temporale di 24 ore, tenendo conto del meteo previsto nei 20 minuti di cui si vuole la previsione. Per eseguire al meglio il training della rete, una pratica diffusa è quella di aumentare il più possibile il dataset a disposizione, tramite delle tecniche note come data augmentation. Per le time series si possono ricavare finestre temporali scorrevoli, note come \textit{time lag} \cite{wei_1990}, in modo di ottenere molte più immagini di giornate intere rispetto a quelle del dataset di partenza. L'obiettivo della rete neurale è quello di ottenere una funzione di autocorrelazione dai time lag. Nel caso in analisi, si prende prima in considerazione una finestra temporale di 24 ore (1440 minuti, corrispondenti a 1440 timestep), spostandosi poi di 1 minuto, ricavando la finestra successiva di 1440 minuti, e così via.
+\svg
+{Charts/DATASET5.pdf_tex}
+{Generazione finestre e data augmentation tramite i time lag. Si parte dalla giornata normale, che inizia alle 0:00 e finisce alle 23:59. Per aumentare la dimensionalità del dataset, si considerano anche la giornata che inizia alle 0:01 e finisce alle 24:00 del giorno dopo, ma anche quella dalle 0:02 alle 24:01 del giorno dopo, e così via.}
+{fig:dataset5}
+Si ottiene quindi un vasto insieme di finestre di 24 ore, dal momento che ci si sposta solo di 1 minuto per ogni finestra mobile. In questo modo, in fase di training la rete riceverà molte immagini di finestre di 24 ore.
+\svg[height=5cm]
+{Charts/DATASET6.pdf_tex}
+{Data augmentation. Una pipeline realizzata allo scopo unisce i dati dei sensori e del meteo ed esegue il processo descritto in questa sezione e visto in figura \ref{fig:dataset5}.}
+{fig:dataset6}
+\subsection{Training della rete}
+Per rendere efficace il training è necessario che l’insieme delle finestre generate venga mescolato in maniera stocastica, altrimenti si rischia di incorrere in una memorizzazione progressiva delle giornate. Si tratta di un problema noto in letteratura come \textit{Catastrophic Forgetting} \cite{kemker2018measuring}, dove in fase di training la rete impara a svolgere un compito particolare e nel momento in cui viene sottoposta a un dataset differente perde tutto quello imparato in precedenza. Nel caso specifico, viene memorizzata una singola porzione di giornate: nel momento inizia una epoca successiva di training e quindi ricomincia il dataset, le metriche indicano un crollo repentino delle prestazioni di predizione. Questo perché il dataset è di dimensione particolarmente ampia, ma le finestre adiacenti sono molto simili. L’utilizzo di tecniche scalabili si rivela indispensabile \cite{chung2017ubershuffle}, dal momento che è necessario mescolare casualmente una grande quantità di dati. Il training si esegue per un certo numero di \textit{epoche}, dove in ogni epoca ricomincia il dataset. Per ogni epoca è necessario ripetere il rimescolamento.
+È stata realizzata una architettura di preparazione dei dati di training che tiene conto di questi requisiti. Si vedrà nel dettaglio la progettazione e realizzazione di una delle parti che la compongono.
+\svg
+{Charts/TRAIN.pdf_tex}
+{Architettura generazione dati di training e il training vero e proprio. Scopo di questa architettura è prima mescolare in maniera stocastica il dataset e poi eseguire il training, sfruttando Google Cloud MLEngine. }
+{fig:train}
+La prima parte consiste nella trasformazione del dataset di finestre di 24 ore memorizzate su BigQuery (vedi \ref{bigquery}: Big Query) in files del formato di serializzazione di Python denominato Pickle \cite{pickle}. Questi file vengono memorizzati su Google Cloud Storage (vedi \ref{gcs}: GCS). Viene anche realizzato un dizionario contenente gli identificativi dell’istante di inizio di ogni finestra e il corrispondente URI di collegamento al Pickle memorizzato su GCS.

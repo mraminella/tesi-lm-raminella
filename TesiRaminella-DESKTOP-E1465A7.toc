@@ -1,0 +1,173 @@
+\boolfalse {citerequest}\boolfalse {citetracker}\boolfalse {pagetracker}\boolfalse {backtracker}\relax 
+\babel@toc {italian}{}
+\babel@toc {italian}{}
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Introduzione}{3}{chapter*.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {1}Un problema di Data Science}{5}{chapter.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.1}Il problema}{5}{section.1.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.2}Il dataset}{6}{section.1.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {1.2.1}Generazione dataset}{7}{subsection.1.2.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{SCADA}{7}{section*.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Dati Meteo}{10}{section*.7}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {1.2.2}Modello previsionale}{10}{subsection.1.2.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.3}Reti Neurali}{10}{section.1.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {1.3.1}Reti Neurali Multistrato e Profonde}{12}{subsection.1.3.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {1.3.2}Reti Neurali Ricorrenti}{14}{subsection.1.3.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {1.3.3}Il modello NMT}{17}{subsection.1.3.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Architettura rete previsionale}{18}{section*.17}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {2}Dataset e training}{23}{chapter.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.1}Ingestion}{24}{section.2.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {2.1.1}InfluxDB}{25}{subsection.2.1.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {2.1.2}Ingestion su InfluxDB}{26}{subsection.2.1.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.2}Campionamento e aggregazione}{26}{section.2.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {2.2.1}Campionamento}{28}{subsection.2.2.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Telemetrie dei sensori}{28}{section*.28}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Dati Meteo}{29}{section*.30}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {2.2.2}Aggregazione e standardizzazione}{30}{subsection.2.2.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {2.2.3}Data augmentation}{32}{subsection.2.2.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {2.2.4}Training della rete}{33}{subsection.2.2.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {3}Pipeline in batch e training}{35}{chapter.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.1}PCollection}{36}{section.3.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.2}Operazioni elementari}{36}{section.3.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.2.1}ParDo}{36}{subsection.3.2.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.2.2}GroupByKey}{37}{subsection.3.2.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.2.3}CoGroupByKey}{38}{subsection.3.2.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.3}Dataset shuffling}{39}{section.3.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.3.1}Soluzione parallelizzata iniziale}{42}{subsection.3.3.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.3.2}Soluzione parallelizzata scalabile}{45}{subsection.3.3.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.4}Training della rete}{51}{section.3.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.4.1}Modalit\IeC {\`a} di training della rete}{52}{subsection.3.4.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.4.2}Risultati con dataset estate 2018}{53}{subsection.3.4.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.4.3}Risultati con dataset pioggia 2018}{56}{subsection.3.4.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Training direct}{56}{section*.56}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Training feedback}{60}{section*.62}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {4}Pipeline in streaming}{64}{chapter.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {4.1}Windowing}{64}{section.4.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.1.1}Fixed}{65}{subsection.4.1.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.1.2}Sliding}{66}{subsection.4.1.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.1.3}Sessions}{67}{subsection.4.1.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {4.2}Publish-Subscribe}{69}{section.4.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {4.3}Watermark}{71}{section.4.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {4.4}Triggering}{73}{section.4.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.4.1}Comportamento del trigger}{74}{subsection.4.4.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Accumulating}{74}{section*.73}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Discarding}{76}{section*.75}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Accumulating and retracting}{77}{section*.77}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.4.2}Tipologie di trigger}{78}{subsection.4.4.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Repeated update triggers}{78}{section*.79}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Completeness trigger}{83}{section*.86}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Allowed lateness}{85}{section*.89}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {5}Sample and Hold in Streaming}{88}{chapter.5}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5.1}Stateful ParDo}{91}{section.5.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.1.1}Tipi di stato}{92}{subsection.5.1.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{ValueState}{92}{section*.95}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{BagState}{93}{section*.96}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.1.2}Timer}{93}{subsection.5.1.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Event Time}{94}{section*.97}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsubsection}{Processing Time}{95}{section*.98}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.1.3}Supporto Python}{96}{subsection.5.1.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5.2}Architettura}{97}{section.5.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.2.1}Lettura da PubSub e filtraggio}{99}{subsection.5.2.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.2.2}Windowing}{101}{subsection.5.2.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.2.3}Trigger}{102}{subsection.5.2.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.2.4}CombineByKey}{103}{subsection.5.2.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.2.5}Stateful ParDo}{105}{subsection.5.2.5}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.2.6}Scrittura su InfluxDB}{112}{subsection.5.2.6}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5.3}Simulatore eventi}{113}{section.5.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5.4}Testing e risultati}{116}{section.5.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.4.1}Prova con Completeness Trigger}{116}{subsection.5.4.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.4.2}Sliding windows e trigger combinati}{117}{subsection.5.4.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {5.4.3}Unaligned Delay Trigger}{118}{subsection.5.4.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5.5}Modifiche e miglioramenti futuri}{121}{section.5.5}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {A}Tecnologie utilizzate}{125}{appendix.Alph1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {A.1}Google Cloud Platform}{125}{section.Alph1.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {A.1.1}BigQuery}{125}{subsection.Alph1.1.1}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {A.1.2}Google Cloud Storage}{125}{subsection.Alph1.1.2}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {A.1.3}Compute Engine}{126}{subsection.Alph1.1.3}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {A.1.4}Google Dataflow}{126}{subsection.Alph1.1.4}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {A.1.5}IA Hub}{126}{subsection.Alph1.1.5}% 
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {A.2}Tensorflow e Tensorboard}{126}{section.Alph1.2}% 

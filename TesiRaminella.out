@@ -1,0 +1,68 @@
+\BOOKMARK [0][-]{chapter*.1}{Introduzione}{}% 1
+\BOOKMARK [0][-]{chapter.1}{Un problema di Data Science}{}% 2
+\BOOKMARK [1][-]{section.1.1}{Il problema}{chapter.1}% 3
+\BOOKMARK [1][-]{section.1.2}{Il dataset}{chapter.1}% 4
+\BOOKMARK [2][-]{subsection.1.2.1}{Generazione dataset}{section.1.2}% 5
+\BOOKMARK [2][-]{subsection.1.2.2}{Modello previsionale}{section.1.2}% 6
+\BOOKMARK [1][-]{section.1.3}{Reti Neurali}{chapter.1}% 7
+\BOOKMARK [2][-]{subsection.1.3.1}{Reti Neurali Multistrato e Profonde}{section.1.3}% 8
+\BOOKMARK [2][-]{subsection.1.3.2}{Reti Neurali Ricorrenti}{section.1.3}% 9
+\BOOKMARK [2][-]{subsection.1.3.3}{Il modello NMT}{section.1.3}% 10
+\BOOKMARK [0][-]{chapter.2}{Dataset e training}{}% 11
+\BOOKMARK [1][-]{section.2.1}{Ingestion}{chapter.2}% 12
+\BOOKMARK [2][-]{subsection.2.1.1}{InfluxDB}{section.2.1}% 13
+\BOOKMARK [2][-]{subsection.2.1.2}{Ingestion su InfluxDB}{section.2.1}% 14
+\BOOKMARK [1][-]{section.2.2}{Campionamento e aggregazione}{chapter.2}% 15
+\BOOKMARK [2][-]{subsection.2.2.1}{Campionamento}{section.2.2}% 16
+\BOOKMARK [2][-]{subsection.2.2.2}{Aggregazione e standardizzazione}{section.2.2}% 17
+\BOOKMARK [2][-]{subsection.2.2.3}{Data augmentation}{section.2.2}% 18
+\BOOKMARK [2][-]{subsection.2.2.4}{Training della rete}{section.2.2}% 19
+\BOOKMARK [0][-]{chapter.3}{Pipeline in batch e training}{}% 20
+\BOOKMARK [1][-]{section.3.1}{PCollection}{chapter.3}% 21
+\BOOKMARK [1][-]{section.3.2}{Operazioni elementari}{chapter.3}% 22
+\BOOKMARK [2][-]{subsection.3.2.1}{ParDo}{section.3.2}% 23
+\BOOKMARK [2][-]{subsection.3.2.2}{GroupByKey}{section.3.2}% 24
+\BOOKMARK [2][-]{subsection.3.2.3}{CoGroupByKey}{section.3.2}% 25
+\BOOKMARK [1][-]{section.3.3}{Dataset shuffling}{chapter.3}% 26
+\BOOKMARK [2][-]{subsection.3.3.1}{Soluzione parallelizzata iniziale}{section.3.3}% 27
+\BOOKMARK [2][-]{subsection.3.3.2}{Soluzione parallelizzata scalabile}{section.3.3}% 28
+\BOOKMARK [1][-]{section.3.4}{Training della rete}{chapter.3}% 29
+\BOOKMARK [2][-]{subsection.3.4.1}{Modalit\340 di training della rete}{section.3.4}% 30
+\BOOKMARK [2][-]{subsection.3.4.2}{Risultati con dataset estate 2018}{section.3.4}% 31
+\BOOKMARK [2][-]{subsection.3.4.3}{Risultati con dataset pioggia 2018}{section.3.4}% 32
+\BOOKMARK [0][-]{chapter.4}{Pipeline in streaming}{}% 33
+\BOOKMARK [1][-]{section.4.1}{Windowing}{chapter.4}% 34
+\BOOKMARK [2][-]{subsection.4.1.1}{Fixed}{section.4.1}% 35
+\BOOKMARK [2][-]{subsection.4.1.2}{Sliding}{section.4.1}% 36
+\BOOKMARK [2][-]{subsection.4.1.3}{Sessions}{section.4.1}% 37
+\BOOKMARK [1][-]{section.4.2}{Publish-Subscribe}{chapter.4}% 38
+\BOOKMARK [1][-]{section.4.3}{Watermark}{chapter.4}% 39
+\BOOKMARK [1][-]{section.4.4}{Triggering}{chapter.4}% 40
+\BOOKMARK [2][-]{subsection.4.4.1}{Comportamento del trigger}{section.4.4}% 41
+\BOOKMARK [2][-]{subsection.4.4.2}{Tipologie di trigger}{section.4.4}% 42
+\BOOKMARK [0][-]{chapter.5}{Sample and Hold in Streaming}{}% 43
+\BOOKMARK [1][-]{section.5.1}{Stateful ParDo}{chapter.5}% 44
+\BOOKMARK [2][-]{subsection.5.1.1}{Tipi di stato}{section.5.1}% 45
+\BOOKMARK [2][-]{subsection.5.1.2}{Timer}{section.5.1}% 46
+\BOOKMARK [2][-]{subsection.5.1.3}{Supporto Python}{section.5.1}% 47
+\BOOKMARK [1][-]{section.5.2}{Architettura}{chapter.5}% 48
+\BOOKMARK [2][-]{subsection.5.2.1}{Lettura da PubSub e filtraggio}{section.5.2}% 49
+\BOOKMARK [2][-]{subsection.5.2.2}{Windowing}{section.5.2}% 50
+\BOOKMARK [2][-]{subsection.5.2.3}{Trigger}{section.5.2}% 51
+\BOOKMARK [2][-]{subsection.5.2.4}{CombineByKey}{section.5.2}% 52
+\BOOKMARK [2][-]{subsection.5.2.5}{Stateful ParDo}{section.5.2}% 53
+\BOOKMARK [2][-]{subsection.5.2.6}{Scrittura su InfluxDB}{section.5.2}% 54
+\BOOKMARK [1][-]{section.5.3}{Simulatore eventi}{chapter.5}% 55
+\BOOKMARK [1][-]{section.5.4}{Testing e risultati}{chapter.5}% 56
+\BOOKMARK [2][-]{subsection.5.4.1}{Prova con Completeness Trigger}{section.5.4}% 57
+\BOOKMARK [2][-]{subsection.5.4.2}{Sliding windows e trigger combinati}{section.5.4}% 58
+\BOOKMARK [2][-]{subsection.5.4.3}{Unaligned Delay Trigger}{section.5.4}% 59
+\BOOKMARK [1][-]{section.5.5}{Modifiche e miglioramenti futuri}{chapter.5}% 60
+\BOOKMARK [0][-]{appendix.Alph1}{Tecnologie utilizzate}{}% 61
+\BOOKMARK [1][-]{section.Alph1.1}{Google Cloud Platform}{appendix.Alph1}% 62
+\BOOKMARK [2][-]{subsection.Alph1.1.1}{BigQuery}{section.Alph1.1}% 63
+\BOOKMARK [2][-]{subsection.Alph1.1.2}{Google Cloud Storage}{section.Alph1.1}% 64
+\BOOKMARK [2][-]{subsection.Alph1.1.3}{Compute Engine}{section.Alph1.1}% 65
+\BOOKMARK [2][-]{subsection.Alph1.1.4}{Google Dataflow}{section.Alph1.1}% 66
+\BOOKMARK [2][-]{subsection.Alph1.1.5}{Piattaforma IA}{section.Alph1.1}% 67
+\BOOKMARK [1][-]{section.Alph1.2}{Tensorflow e Tensorboard}{appendix.Alph1}% 68

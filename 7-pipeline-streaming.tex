@@ -1,0 +1,233 @@
+\chapter{Pipeline in streaming}\label{pipelinestreaming}
+In fase di produzione, il sistema deve essere in grado di fornire previsioni aggiornate con gli ultimi dati provenienti da SCADA. A tal fine, è necessario lavorare con informazioni in tempo reale, in modo di realizzare con periodicità frequente le predizioni con il sistema realizzato. Nelle pipeline in batch, l’intero insieme dei dati da elaborare è a disposizione al momento di avvio della pipeline. Su quelle in streaming, invece, i dati arrivano in tempo reale e il flusso deve eseguire le manipolazioni su questi dati mano a mano che vengono messi a disposizione. Esistono tutta una serie di meccanismi per gestire questo requisito in maniera scalabile. Dopo aver visto nel dettaglio questi strumenti e meccanismi, si andrà a studiare il caso d’uso affrontato dal candidato e la soluzione applicata. Per tutta questa sezione si può fare riferimento al libro Streaming Systems di Akidau, Chernyak e Lax \cite{akidauchernyaklax}.
+\section{Windowing}\label{windowing}
+Il Windowing è una tecnica di suddivisione dei dati sulla base del loro timestamp. Il timestamp rappresenta l’istante temporale in cui una informazione è stata generata. Nel caso in studio si hanno delle letture di sensori, ogni lettura avrà un proprio timestamp. Una caratteristica di base del Windowing è che la suddivisione viene effettuata solo in seguito all’applicazione di una GroupByKey (vedi \ref{groupbykey}: GroupByKey). Questo perché il processo di Windowing è stato pensato per il calcolo distribuito, secondo i principi base di Hadoop MapReduce, che ha la base la struttura $ <chiave, valore> $ I dati quindi saranno divisi sia per chiave, sia per finestra temporale.
+\img[height=6cm]
+{Imgs/beam1.png}
+{Processo di windowing \cite{apachebeam}. Le finestre sono assegnate nel processo di Windowing, tuttavia la suddivisione vera e propria avviene solo quando viene effettuata anche la GroupByKey. Questo significa che qualunque operazione sia compiuta dalla ParDo raffigurata nel terzo blocco sarà eseguita indistintamente dalle finestre e dalle chiavi. } 
+{fig:beam1}
+Esistono attualmente tre diversi tipi di windowing, che vanno a dividere in maniera differente le sequenze temporali.
+\subsection{Fixed}
+Nelle Fixed Windows le finestre hanno larghezza fissa e non si sovrappongono, con la stessa larghezza in tutte le chiavi degli elementi. Dopo la GroupByKey avremo delle PCollection di elementi raggruppati per chiave e per finestra. Nella prossima figura si vede una rappresentazione di questo meccanismo: si supponga di avere 3 chiavi, ognuna con i propri valori associati, con timestamp che vanno da 0 a 60 secondi. Si vogliono raggruppare gli elementi, oltre che per chiave, anche per finestre di grandezza fissa di 15 secondi. Si avranno quindi quindi quattro finestre consecutive di larghezza 15 secondi, ognuna delle quali conterrà gli elementi raggruppati per chiave e per intervallo temporale.
+\img[height=6cm]
+{Imgs/window1.png}
+{Fixed Windows. Ogni finestra ha grandezza fissa di 15 secondi. } 
+{fig:window1}
+\subsection{Sliding}
+Le Sliding Window sono finestre mobili sovrapponibili, hanno stessa larghezza in tutte le chiavi degli elementi e si spostano di un'ampiezza fissa. Sono caratterizzate dal \textit{periodo} e dallo \textit{stride}: il periodo determina la larghezza della finestra, lo stride determina lo spostamento della finestra rispetto all’istante di partenza. Di conseguenza si avranno molte finestre sovrapposte sulla base di larghezza e stride delle finestre. Nella prossima figura si può vedere un esempio in cui supponiamo di avere elementi con tre chiavi differenti e timestamp distribuiti fra 0 e 60 secondi. Si supponga di raggruppare gli elementi per chiave e in finestre mobili di larghezza 30 secondi con stride 15 secondi. Come risultato, dopo la GroupByKey, si avranno tre finestre:
+\begin{enumerate}
+\item La prima finestra inizia a 0 secondi e finisce a 30 secondi
+\item La seconda finestra inizia a 15 secondi e finisce a 45 secondi
+\item La terza finestra inizia a 30 secondi e finisce a 60 secondi.
+\end{enumerate}
+Gli elementi con timestamp fra 15 e 30 secondi finiranno sia nella prima che nella seconda finestra, similmente gli elementi con timestamp fra 30 e 45 secondi finiranno sia nella seconda che nella terza finestra.
+\img[height=6cm]
+{Imgs/window2.png}
+{Sliding Windows. Ogni finestra ha larghezza fissa di 30 secondi, le finestre successive alla prima si spostano in avanti di 15 secondi rispetto la precedente e possono sovrapporsi.} 
+{fig:window2}
+\subsection{Sessions}
+Le Session Window sono finestre di cui la larghezza non è determinata a priori, ma va stabilito un minimo intervallo fra una finestra e quella successiva, questo intervallo viene chiamato \textit{gap duration}. Inoltre, la larghezza delle finestre può differire fra le chiavi degli elementi raggruppati, ovvero le finestre non sono allineate fra le diverse chiavi. L’obiettivo di questo tipo di finestra è raggruppare eventi adiacenti e separare eventi che avvengono in momenti differiti. Nella prossima figura si ha un esempio dove gli elementi hanno tre chiavi differenti e timestamp che vanno dai 0 ai 3 minuti e 45 secondi, ma di cui solo in certi intervalli sono presenti elementi, in particolare:
+\begin{enumerate}
+\item Per la chiave 1 si hanno elementi negli intervalli
+\subitem Da 0 a 45 secondi
+\subitem Da 1:30 a 1:45
+\subitem Da 2:00 a 2:15
+\subitem Da 3:00 a 3:45
+\item Per la chiave 2 ci sono elementi negli intervalli
+\subitem Da 0 a 1:00
+\subitem Da 1:45 a 2:14
+\subitem Da 2:30 a 3:00
+\item Per la chiave 3 si hanno elementi negli intervalli
+\subitem Da 0:15 a 1:00
+\subitem Da 1:15 a 2:00
+\subitem Da 2:30 a 3:15
+\end{enumerate}
+Si suppone di raggruppare gli elementi in Session Windows con gap duration di 30 secondi. Si avranno come risultato delle finestre diverse per ogni chiave, dal momento che i timestamp degli elementi sono distribuiti diversamente per ogni chiave. In particolare:
+\begin{enumerate}
+\item Per Chiave 1
+\subitem Una finestra da 0 a 45 secondi
+\subitem Una seconda finestra da 1:30 a 2:15, perché l’intervallo fra i dati è inferiore ai 30 secondi
+\subitem Una terza finestra da 3:00 a 3:45
+\item Per Chiave 2
+\subitem Una finestra da 0 a 1:00
+\subitem Una seconda finestra da 1:45 a 3:00, perché l’intervallo intermedio è inferiore ai 30 secondi
+\item Per Chiave 3
+\subitem Una finestra da 15 a 2:00, perché l’intervallo intermedio è inferiore ai 30 secondi
+\subitem Una seconda finestra da 2:30 a 3:15.
+\end{enumerate}
+\img[height=6cm]
+{Imgs/window3.png}
+{Session Windows. L'unico vincolo è la \textit{gap duration} minima di 30 secondi rispetto alla finestra precedente. Le finestre possono sovrapporsi e sono indipendenti rispetto ogni chiave. } 
+{fig:window3}
+\section{Publish-Subscribe}\label{pubsub}
+Nell’architettura di riferimento la sorgente dei dati è data da un sistema di Publish-subscribe \cite{coulouris_2012}. In questo sistema si hanno i \textit{publisher}, che pubblicano eventi strutturati e i \textit{subscriber} che si sottoscrivono agli eventi. Dal momento che ogni subscriber può essere interessato solo a un sottoinsieme degli eventi pubblicati dai publisher, esistono dei sistemi di filtraggio. Su Google PubSub si ha un sistema Topic-based (o subject-based). Con questo approccio, si pone l’assunzione che ogni notifica sia espressa in un formato di diversi campi di cui campo fisso è il topic. Un subscriber si può abbonare a uno o più topic, quindi riceverà gli eventi relativi solamente a quei topic. Nella prossima figura si vede un esempio con tre publisher $ A, B, C $ e tre subscriber $ X, Y, Z$. I tre publisher pubblicano sui rispettivi topic $  A, B, C $ un messaggio. Subscriber $ X $ è iscritto, tramite le Subscription $ XA $ e $ XB $, ai topic $ A $ e $ B $ . $ Subscriber Y $ è iscritto al topic $ C $ tramite la subscription $ YC $, anche Subscriber $ Z $ è iscritto al topic $ C $ tramite la subscription $ ZC $.
+I tre publisher inviano rispettivamente tre messaggi $ Message 1, Message2, Message3 $. $ Message 1 $ e $ Message2 $ verranno inviati a $ Subscriber X $, mentre $ Message 3 $ sarà inviato ai subscriber $ Y $ e $ Z $.
+\img[height=10cm]
+{Imgs/pubsub1.png}
+{Esempio di rete Pub/Sub. A, B e C sono publisher, X, Y e Z sono subscriber, A, B e C sono topic.} 
+{fig:pubsub1}
+Un sistema di Publish-Subscribe ha le seguenti caratteristiche, di cui è necessario tener conto nel momento in cui si va a realizzare una architettura che manipola i dati in tempo reale:
+\begin{itemize}
+\item Eterogeneità: I componenti che usano il sistema Publish-Subscribe possono essere completamente differenti, sfruttando questo sistema di comunicazione per potersi interfacciare e diventare interoperabili. Nel caso in analisi, infatti, i dati saranno provenienti da uno SCADA, verranno invece elaborati da una pipeline realizzata con il framework Beam in esecuzione su Google Dataflow.
+\item Asincronicità: Le notifiche ai Subscriber sono inviate in maniera asincrona rispetto ai Publisher. Questo significa che al momento della pubblicazione di un evento, il Publisher non dovrà attendere che il messaggio sia inviato a tutti i Subscriber, ma il sistema provvederà a inviare la comunicazione a tutti gli iscritti.
+\end{itemize}
+Google Pub/Sub, inoltre, ha le seguenti caratteristiche:
+\begin{itemize}
+\item Nessuna garanzia di ordine: i messaggi vengono inviati con la massima velocità possibile, ma con nessuna garanzia di ordine.
+\item Garanzia di at-least-once: i messaggi vengono spediti ai subscriber almeno una volta, tuttavia potrebbero esserci dei messaggi duplicati  anche più di una volta.
+\end{itemize}
+La pipeline in streaming potrà andare a leggere direttamente gli eventi provenienti da un sistema Publish-Subscribe di questo tipo, iscrivendosi a un topic e ricevendo i dati in ingresso da quel topic, come vediamo nel seguente snippet di codice Java:
+\img[height=10cm]
+{Snippets/streaming1.png}
+{Codice Java di lettura da un topic PubSub. \textit{p} è la pipeline, vengono letti oggetti Event da un topic di PubSub, conservando il timestamp originale di quegli eventi.}
+{fig:pubsubread}
+Sarà importante quindi tenere conto delle caratteristiche di questo sistema di comunicazione per l’elaborazione dei dati richiesta.
+\section{Watermark}\label{watermark}
+Nelle pipeline in streaming, come quelle che leggono i dati provenienti da PubSub con l’iscrizione a un topic, ci sono una serie di concetti aggiuntivi rispetto alle pipeline di base. Questi concetti sono relativi ai vincoli temporali che vengono dati per l’elaborazione di questi dati. Per questo motivo, il timestamp è una informazione indispensabile e necessaria per qualunque sorgente di dato. Se il esso non viene fornito dalla sorgente, sarà utilizzato l’istante in cui il dato è entrato a disposizione della pipeline. Ad esempio, supponiamo di avere come sorgente dati un lettore PubSub iscritto a un topic. Per ogni messaggio, se non viene letto il timestamp da un suo attributo, sarà utilizzato l’istante in cui il messaggio è ricevuto dalla pipeline.
+Un primo vincolo generale che si applica alla sorgente dati è il Watermark. Qualunque informazione in arrivo avente un timestamp successivo al Watermark verrà trascurata e non verrà mai elaborata dalla pipeline. Questo concetto è necessario al fine di poter garantire il funzionamento corretto dell’operazione di Windowing che abbiamo visto in precedenza, la quale opera sui timestamp. Il Watermark rappresenta lo stato di completamento dell’elaborazione rispetto a un certo istante. Nel grafico che segue vediamo l’interazione del Watermark con gli altri aspetti temporali dei dati in streaming. Sull’asse orizzontale abbiamo \textit{Event Time}, che caratterizza il timestamp del dato. Questo può essere, ad esempio, l'istante di lettura da un sensore. Sull’asse verticale abbiamo il \textit{Processing Time}, ovvero l’istante in cui lo stesso dato viene elaborato dalla pipeline. Incrociando i due istanti, otteniamo un punto del grafico. Il caso ideale, impossibile in ambito reale, è rappresentato dalla bisettrice del piano, dove l’istante in cui il dato viene prodotto ha un ritardo ben determinato rispetto al momento in cui viene processato. In realtà si ha un ritardo variabile nel tempo, sul grafico indicato come \textit{Processing time lag}, da cui otteniamo l’andamento rappresentato in rosso.
+\img[height=10cm]
+{Imgs/akidau1.png}
+{Watermark, processing time, event time \cite{akidauchernyaklax}. L'asse orizzontale è il timestamp dell'evento, l'asse verticale è l'istante in cui lo stesso evento viene processato dalla pipeline. La funzione rossa rappresenta l'andamento del ritardo di processamento, che non è costante. } 
+{fig:pubsub1}
+\section{Triggering}\label{trigger}
+Nelle implementazioni reali dei sistemi in streaming come Beam, il Watermark viene determinato in maniera euristica, sulla base delle caratteristiche dei dati che provengono in streaming, per compensare sorgenti che non garantiscono la delivery in ordine come Pub/Sub. Il ritardo di processamento dei dati non è deterministico, di conseguenza il Watermark euristico potrebbe non essere desiderabile. Si potrebbero volere invece i dati in uscita da una pipeline entro un certo ritardo massimo, eventualmente trascurando i dati che arrivano in ritardo eccessivo. Questo è possibile utilizzando i Trigger in combinazione al Windowing. In questo modo, è possibile raggruppare i dati all’interno di finestre temporali e stabilire quando una certa finestra avrà esaurito il proprio contenuto. Esistono molti tipi di trigger, ognuno si comporta in maniera differente. Essi possono essere utilizzati in combinazione, per ottenere il comportamento desiderato. Tutti hanno la caratteristica di determinare il momento in cui i dati all’interno di una finestra verranno resi disponibili per l’elaborazione al resto della pipeline, dopo l’esecuzione della GroupByKey. Questo momento viene denominato \textit{firing}, a significare che il contenuto di quella finestra recuperato fino a quell’istante viene “sparato” fuori dalla GroupByKey.
+L’autore del libro Streaming Systems, Tyler Akidau, fa riferimento ai vari aspetti combinazione delle Window e dei Trigger come 4 elementi principali: cosa (What), dove (Where), come (How), e quando (When). Per quanto riguarda cosa (What), parliamo del raggruppamento e delle operazioni che saranno eseguite sui dati dopo di esso, nel framework Beam abbiamo visto le GroupByKey e le ParDo. Il dove (Where) viene stabilito dal Windowing, che stabilisce dove andare a suddividere temporalmente i nostri dati. Il come (How) e quando (When) saranno stabiliti dai tipi di trigger e dal loro comportamento, che adesso vedremo.
+\subsection{Comportamento del trigger}
+Gli elementi che rientrano in quella finestra potrebbero non essere finiti dopo il primo firing, quindi potremmo averne più di uno per la stessa finestra temporale. Il comportamento (How) determina cosa succede agli elementi della stessa finestra nel momento in cui avvengono i firing successivi al primo.
+\subsubsection{Accumulating}
+Per ogni firing, il contenuto delle finestre precedentemente emesse (\textit{fired panes}) viene ripetuto. Per esaminare meglio questo comportamento, si prenda come riferimento un esempio: si supponga di ricevere eventi contenenti un numero intero e un proprio timestamp. Si vogliono dividere questi eventi in finestre fisse di larghezza 2 minuti e calcolare la somma del valore degli eventi per ciascuna finestra. Per il momento si trascuri la modalità in cui sono scattati i trigger, prendendo per noto che ad ogni somma parziale è scattato un trigger. Nella figura seguente si ha un comportamento Accumulating su questo esempio, dove si vede:
+\begin{itemize}
+\item sull’asse orizzontale, il timestamp dell’evento
+\item sull’asse verticale, il timestamp dell’istante di processamento
+\item nei cerchi grigi i singoli eventi con il proprio valore
+\subitem i singoli eventi hanno un proprio timestamp e un proprio istante di processamento
+\item nelle righe verticali la separazione in finestre
+\subitem le finestre sono di larghezza fissa di 2 minuti
+\item nelle righe orizzontali i trigger scattati (firing)
+\subitem per ogni firing, viene calcolata la somma parziale degli elementi al suo interno (numeri in giallo)
+\item nei numeri in grassetto: le somme parziali in giallo, quelle totali in bianco.
+\end{itemize}
+\svg
+{Charts/AKIDAU1.pdf_tex}
+{Accumulating fired panes. Sull'asse orizzontale si vede il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}. }
+{fig:accumulating}
+In questo caso, si ha che le somme parziali ottenute alla fine dei firing, ovvero l'ultima somma emessa per ciascuna finestra, corrispondono al risultato atteso. Questo perchè il comportamento Accumulating accumula gli eventi della stessa finestra. A ogni nuovo firing vengono mandati tutti gli elementi che rientrano nella stessa finestra, anche se erano già stati emessi.
+\subsubsection{Discarding}
+Per ogni firing vengono emessi solo i nuovi elementi, i precedenti non sono ripetuti. Si consideri l’esempio di prima, ma con modalità Discarding fired panes. In questo caso, per ottenere la somma complessiva in una finestra, si dovrebbe memorizzare il valore emesso ad ogni firing e sommarlo a quello ottenuto precedentemente.
+\svg
+{Charts/AKIDAU2.pdf_tex}
+{Discarding fired panes.  Sull'asse orizzontale si vede il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}.}
+{fig:discarding}
+\subsubsection{Accumulating and retracting}
+Viene ripetuto l’intero contenuto della finestra, come per Accumulating, ma viene anche fornita la differenza rispetto ai valori accumulati fino a quel momento. Questa situazione è utile per quei casi in cui l’operazione di aggregazione ha bisogno di conoscere il cambiamento dell’insieme dei dati per calcolare il nuovo valore.
+\svg
+{Charts/AKIDAU3.pdf_tex}
+{Accumulating and retracting fired panes.  Sull'asse orizzontale si vede il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale e la differenza. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}. }
+{fig:accretract}
+In certi casi in cui vengono calcolati risultati parziali, potrebbe essere importante conoscere la differenza rispetto ai valori già ricevuti.
+\subsection{Tipologie di trigger}
+Il tipo di trigger determina quando (when) verranno processati i dati in ciascuna finestra. Esistono due macro-tipologie di trigger: \textit{Repeated update} trigger e \textit{Completeness} trigger. La differenza sostanziale è l’utilizzo o meno del watermark euristico.
+\subsubsection{Repeated update triggers}
+Questo tipo di trigger scatta indipendentemente dallo stato del watermark, quindi garantiscono un controllo più specifico nel caso in cui si vogliano seguire gli andamenti dei dati in arrivo, in particolare dal punto di vista della dimensionalità e del tempo. Con Repeated update si intende che scatta più volte, ogni qualvolta si verifica nuovamente la stessa condizione.
+
+\textbf{\textit{
+		Per dimensionalità (per-record)
+	}}
+I trigger basati sulla dimensionalità (per-record triggers) scattano ogni qualvolta si ha almeno un dato numero di elementi processati in una finestra, contando indipendentemente per ogni finestra tale numero. Questo permette di avere la certezza che i dati messi a disposizione avranno sempre una cardinalità minima. Prendendo in esame l’esempi visto prima, si ipotizzi di utilizzare finestre fisse di larghezza 2 minuti e un Repeated update trigger per dimensionalità minima 1:
+\img[height=3cm]{Snippets/triggercount.png}
+{Pseudocodice da \cite{akidauchernyaklax} per la definizione di un Per-record trigger.}
+{img:triggercount}
+Si avrà un firing ogni qualvolta viene processato un elemento che rientra in una finestra. Nella prossima figura si vede questo effetto, si notino le frecce che rappresentano lo scatenarsi del trigger:
+\svg
+{Charts/TRIGGER1.pdf_tex}
+{Esempio per-record triggers. Sull'asse orizzontale si ha il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}.}
+{fig:triggerperrecord}
+Le somme parziali seguono il comportamento Accumulating, per cui all'interno di ogni finestra si avrà l'emissione di una nuova somma parziale ogni qualvolta viene letto un nuovo valore nella stessa finestra.
+\textbf{\textit{
+		Per ritardo non allineato (unaligned delay)
+	}}
+
+I trigger per ritardo disallineato (unaligned delay trigger) scattano dopo un certo ritardo temporale rispetto al primo elemento processato all’interno di una finestra, contando questo ritardo indipendentemente per ogni finestra. Il ritardo è determinato rispetto al tempo di processamento degli elementi, non rispetto al tempo di inizio o fine finestra. Nel caso in cui sia già scattato, si considera il primo elemento processato in una finestra successivamente al firing precedente. In questo modo, si avrà garanzia di avere un ritardo massimo limitato fra la disponibilità di un dato e il completamento della sua elaborazione.
+Si consideri questo tipo di trigger per l’esempio visto finora, con finestre di 2 minuti: si supponga di avere un unaligned delay di 2 minuti.
+\img[height=3cm]{Snippets/triggerunaligned.png}
+{Pseudocodice da \cite{akidauchernyaklax} per la definizione di un Unaligned delay trigger.}{img:triggerunaligned}
+Si possono vedere 5 trigger:
+\begin{enumerate}
+\item Nella prima finestra che va dalle 12:00 alle 12:02, il primo elemento con timestamp 12:00:30 arriva alle 12:05:20, quindi il trigger scatta alle 12:07:20.
+\item Sempre nella prima finestra, arriva un secondo elemento, con timestamp 12:01:30, alle 12:08:20. Dato che il primo trigger è già scattato si avvia un altro contatore, che fa scattare il trigger alle 12:10:20.
+\item Nella seconda finestra dalle 12:02 alle 12:04, il primo elemento arriva alle 12:05:40, che avvia il contatore di 2 minuti. Arrivano altri 2 elementi, ma tutti prima delle 12:07:40, istante in cui scatta il trigger. In tale istante vengono emessi tutti gli elementi “catturati” fino a quel momento in tale finestra.
+\item Nella terza finestra dalle 12:04 alle 12:06, arriva un solo elemento alle 12:06:30, quindi il trigger scatta alle 12:08:30.
+\item Nella finestra dalle 12:06 alle 12:08 arriva un primo elemento alle 12:07:20. Questo elemento fa avviare il contatore del trigger, che scatta alle 12:09:20. Come con il terzo trigger che abbiamo esaminato, arrivano altri due elementi, entrambi prima dell’istante in cui il trigger scatta. Quindi alle 12:09:20 vengono emessi tutti gli elementi catturati fino a quell’istante nella finestra.
+\end{enumerate}
+\img[height=10cm]
+{Imgs/akidau2.png}
+{Esempio trigger unaligned delay \cite{akidauchernyaklax}. Sull'asse orizzontale si vede il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale. Per ogni contatore che fa scattare un trigger è mostrata in verticale una retta che evidenzia il tempo trascorso dall'evento all'istante in cui scatta. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}. } 
+{fig:triggerunaligned}
+Per ciascuno di questi trigger viene calcolata la somma parziale all'interno della stessa finestra, in modalità Accumulating.
+
+\textbf{\textit{
+		Per ritardo allineato (aligned delay)
+	}}
+
+I trigger per ritardo allineato (aligned delay triggers) considerano sempre un ritardo predefinito rispetto agli elementi in arrivo, però tale ritardo è allineato fra tutte le finestre. Questo significa che il primo elemento in arrivo in una finestra fa avviare un timer, allo suo scadere scatenerà un firing per qualunque finestra, qualora vi siano elementi al suo interno. Questo tipo di trigger in particolare non è implementato su tutti i sistemi in streaming: in Beam non è implementato. Il requisito di sincronizzare il timer rispetto tutte le finestre è caratteristica peculiare di questo tipo di trigger.
+Come esempio, si prenda sempre il caso visto in precedenza, supponendo di avere finestre fisse di 2 minuti con un Repeated update trigger a ritardo allineato di 2 minuti.
+\img[height=3cm]{Snippets/triggerunaligned.png}
+{Pseudocodice da \cite{akidauchernyaklax} per la definizione di un Aligned delay trigger.}
+{img:triggerunaligned}
+Avremo lo scatenarsi di due trigger:
+\begin{enumerate}
+\item Il primo trigger è avviato dall’evento delle 12:05 e scatta dopo due minuti alle 12:07. Fra le 12:05 e le 12:07 sono arrivati elementi in altre finestre: vengono anch’essi emessi alle 12:07.
+\item Il secondo trigger è avviato dall’evento delle 12:07 e scatta alle 12:09.  Anche in questo caso, sono arrivati elementi in quel lasso di tempo in altre finestre: allo scattare del trigger verranno emessi anche gli elementi di quelle finestre.
+\end{enumerate}
+\svg
+{Charts/TRIGGER2.pdf_tex}
+{Esempio trigger aligned delay. Sull'asse orizzontale si vede il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale. Per ogni evento che fa scattare un trigger sono visibili delle frecce rosse che evidenziano l'istante in cui è scattato. Essendo allineato, il firing avviene per tutte lefinestre. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}. }
+{fig:triggeraligned}
+Le somme parziali all'interno della stessa finestra sono sempre calcolate in modalità Accumulating.
+
+\subsubsection{Completeness trigger}
+Questo tipo di trigger segue l'andamento del Watermark, combinandolo con i Repeated Update trigger. In questo modo viene fatta distinzione fra elementi in "orario", in "anticipo" o in "ritardo" rispetto al watermark. Vediamo prima il caso in "orario", dove il trigger di ogni finestra scatta una volta soltanto, quando il watermark raggiunge il timestamp di fine finestra.
+Si supponga il caso di esempio già visto, con windowing su finestre fisse di 2 minuti, con l'uso solamente di un Completeness Trigger On Time.
+\img[height=3cm]{Snippets/triggerwatermark.png}
+{{Pseudocodice da \cite{akidauchernyaklax} per la definizione di un On-time completeness trigger}}{img:triggerwatermark}
+Il watermark euristico, di cui possiamo seguire l'andamento nella linea verde, cercherà di seguire l'andamento dei dati. Si ha il caso di un evento in "ritardo":
+\begin{itemize}
+\item L'evento perso ha timestamp 12:01:40
+\item Alle 12:06 il watermark ha valore 12:02, quindi considera la finestra chiusa e scatta il trigger "on time" per quella finestra
+\item Alle 12:08:20 arriva un nuovo evento (con valore 9, in rosso nella figura), che viene perso perchè nessun altro trigger è impostato su quella finestra.
+\end{itemize}
+\svg
+{Charts/TRIGGER3.pdf_tex}
+{Esempio On Time trigger. Sull'asse orizzontale si vede il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale. Nell'istante in cui il watermark incontra l'istante di chiusura finestra, scatta il trigger per quella finestra. Un evento arriva con ritardo eccessivo e viene perso. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}. }
+{fig:triggerontime}
+Il risultato è che la somma dei valori degli elementi della prima finestra, che va dalle 12:00 alle 12:02, è sbagliata, perchè il secondo elemento con valore 9 è stato perso.
+
+\subsubsection{Allowed lateness}
+Si è visto che i dati in arrivo dopo il watermark vengono scartati, di conseguenza non dovrebbe essere possibile avere dei trigger che scattano dopo il watermark. Questo è possibile, invece, con l'introduzione del "ritardo massimo consentito" (\textit{allowed lateness}), noto fra i Streaming Systems anche come \textit{Garbage Collection}. Questa misura determina il ritardo massimo tollerato dal sistema, dopo questo ritardo massimo rispetto al Watermark non sarà possibile avere alcun \textit{late firing}.
+
+Si hanno quindi tre tipi di Completeness Triggers, che possono essere gestiti separatamente:
+\begin{itemize}
+	\item \textbf{Early firings}: essi vanno caratterizzati con uno o più Repeated Update Trigger, scattano qualora si verifichino le loro condizioni prima del Watermark.
+	\item \textbf{On time}: quando il Watermark raggiunge il timestamp di chiusura finestra, scatta questo trigger. I dati che arrivano dopo che questo esso è scattato verranno considerati in ritardo.
+	\item \textbf{Late firings}: questi trigger, come gli Early Firings, vanno caratterizzati con uno o più Repeated Update Trigger. I timer o contatori di tali trigger verranno attivati solo dopo che il Watermark ha fatto scattare il trigger "On time".
+\end{itemize}
+
+Si supponga di avere l'esempio visto in precedenza, ma oltre al trigger On Time aggiungiamo altri due trigger:
+\begin{itemize}
+	\item Un Early Firing trigger costituito da un Aligned Delay di un minuto
+	\item un Late Firing trigger costituito da un Per-Record trigger a un elemento.
+\end{itemize}
+\img[height=3cm]{Snippets/triggerwatermarkearlylate.png}
+{Pseudocodice da \cite{akidauchernyaklax} per la definizione di tre trigger, rispettivamente Early, On-Time e Late.}
+{img:triggerwatermarkearlylate}
+Nell'esempio in analisi avremo 8 firing, in particolare:
+\begin{itemize}
+\item I firing on-time si hanno quando il watermark raggiunge l'istante di fine finestra e in quel momento la stessa finestra contiene uno o più elementi
+\item Il late firing (nell'esempio è solo uno) accade nel momento in cui almeno un elemento rientra in una finestra, ma per quella finestra è già scattato il trigger on-time
+\item Gli early firing avvengono quando entra almeno un elemento in una qualunque finestra ed entro un minuto non scatta il trigger On-time. Essendo Repeating Trigger, possono scattare anche più di una volta prima dell'On-time trigger.
+\end{itemize}
+\img
+{Imgs/akidau3.png}
+{Esempio Early, On Time, Late triggers. Sull'asse orizzontale si ha il timestamp dell'evento, su quello verticale l'istante in cui viene processato dalla pipeline. Gli eventi sono divisi per finestre di larghezza fissa pari a 2 minuti. Ogni evento ha un certo valore intero, per ogni trigger è calcolata la somma parziale. Nell'istante in cui il watermark incontra l'istante di chiusura finestra, scatta il trigger On-time per quella finestra. Se le condizioni del trigger Early avvengono prima del trigger On-time, essi scattano. Similmente per i Late, se le condizioni avvengono dopo On-time. Versione modificata di un video tratto da  \cite{akidau_chernyak_lax_2018}.}
+{fig:triggerontimeearlylate}
+In questo capitolo si è vista una panoramica dei concetti e degli strumenti principali richiesti per realizzare una architettura di processamento dei dati in streaming. Nel prossimo si vedrà il caso d'uso specifico affrontato dal candidato, provando diverse combinazioni di questi strumenti per ottenere i risultati e le prestazioni desiderate.

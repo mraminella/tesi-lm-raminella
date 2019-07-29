@@ -1,0 +1,246 @@
+\chapter{Pipeline in batch e training}\label{pipelinebatch}
+Si è visto che alcune fasi di processamento dei dati vengono effettuate utilizzando Beam sfruttando Dataflow, per motivi di efficienza e di scalabilità, tuttavia non è ancora stato detto nulla su cosa caratterizzi il modello per renderlo scalabile. Esso si basa su MapReduce \cite{white_2012}, un paradigma realizzato per essere intrinsecamente parallelo, permettendo di scalare l'elaborazione di grandi quantità di dati su un sistema distribuito e limitando la capacità di computazione solamente al numero di macchine a disposizione. Ogni operazione deve poter essere definita in due funzioni, eseguite in sequenza: la funzione di Map e quella di Reduce. Una caratteristica essenziale che i dati passati a queste funzioni devono avere è quella di essere rappresentabili come coppie $ <chiave, valore> $\footnote{$ <a,b> $ rappresenta una tupla di due elementi $ a, b $.} . Una pipeline, in questo ambito, rappresenta una astrazione del flusso dei dati attraverso le operazioni di trasformazione \cite{apachebeam}.
+Apache Beam è un framework open source per la definizione ed esecuzione delle pipeline per il processamento dei dati sia in batch che in streaming. Una pipeline in batch è caratterizzata dal fatto di avere tutti i dati disponibili al momento in cui la pipeline viene lanciata in esecuzione. Sono supportati diversi framework di esecuzione, chiamati anche \textit{runner}. Un runner di Beam è un’interfaccia di esecuzione distribuita, che permette di mettere a disposizione anche come servizio (a pagamento) la capacità di computazione su cloud. Google Cloud Dataflow è uno dei runner supportati da Beam, che permette di sfruttare le risorse disponibili su Google Cloud.
+\section{PCollection}
+La PCollection è l’unità elementare del dato in Beam. Garantisce maggiore flessibilità sui tipi di dato che vi possono essere inseriti, dato che non limita alla coppia $ <chiave, valore> $ richiesta dal paradigma MapReduce. Una pipeline elabora i dati in uno o più insiemi di PCollection, che rimarranno collegati alla stessa pipeline fino al suo termine. Le caratteristiche di una PCollection sono:
+\begin{enumerate}
+\item \textbf{Tipo}: Gli elementi di una PCollection possono essere di ogni tipo, ma all'interno della stessa collezione tutti gli elementi devono essere dello stesso tipo.
+\item \textbf{Immutabilità}: Una PCollection è immutabile, ogni fase di processamento della pipeline può elaborare e produrre nuove PCollection, ma i contenuti della PCollection di origine vengono letti e non possono essere alterati.
+\item \textbf{Accesso}: Gli elementi delle PCollection non possono essere letti in modo casuale, dato che Beam consuma gli elementi singoli all’interno delle PCollection. Questo significa che gli elementi all'interno di una PCollection vengono iterati in un ordine prestabilito che non può essere variato.
+\item \textbf{Dimensione}: Una PCollection è un insieme di elementi di dimensione non determinabile a priori. La quantità di elementi che può essere contenuto in una PCollection non ha limiti.
+\end{enumerate}
+\section{Operazioni elementari}\label{beamoperations}
+In questo paragrafo si vedranno alcune delle operazioni elementari sul framework Apache Beam, in particolare quelle utilizzate nella parte di shuffling casuale delle finestre nel dataset alla fine della realizzazione dei dati di training. Una caratteristica essenziale di tutte queste funzioni è l’atomicità.  In generale, una funzione atomica $ f(x) $ deve restituire sempre lo stesso risultato data una stessa $x$ in ingresso.
+\subsection{ParDo}\label{pardo}
+Una ParDo è una trasformazione generica, simile alla funzione di Map nel paradigma MapReduce. La ParDo riceve gli elementi singoli di una PCollection in ingresso ed emette zero, uno o più elementi a una PCollection in uscita. Operazioni tipiche di una ParDo possono essere:
+\begin{itemize}
+\item Filtraggio di un dataset
+\item Formattazione o conversione di tipo di ogni elemento in un dataset
+\item Estrazione di parti del contenuto dagli elementi in un dataset
+\item Eseguire computazioni sui singoli elementi di un dataset
+\end{itemize}
+L'operazione che sarà eseguita dalla ParDo è definita in una funzione denominata \textit{ProcessElement} che deve essere implementata dal programmatore. All'interno di tale funzione verrà concentrata la logica della trasformazione. Questo permette di separare il framework Beam dalla business logic: è possibile e raccomandato testare le funzioni di trasformazione separatamente dal resto e prima di lanciare l'intera pipeline.
+\subsection{GroupByKey}\label{groupbykey}
+Questo tipo di trasformazione prevede di avere in ingresso PCollection di tipo  \[ <chiave, valore [, valore_{1}, …, valore_{n}] >  \footnote{$ [, valore_{1}, …, valore_{n}] $ rappresenta un insieme di elementi opzionali, in numero arbitrario.} \]In uscita avremo delle PCollection del tipo  \[ <chiave, Iterable<valore [, valore_{1}, …, valore_{n}]> \] dove $ Iterable<> $ rappresenta una collezione iterabile di elementi, per cui gli i dati in ingresso verranno raggruppati in base alla chiave. Si tratta di una operazione di aggregazione di elementi.
+Per avere un semplice esempio di GroupByKey, si consideri il seguente insieme di coppie $ <chiave,valore> $:
+\begin{lstlisting}
+cat, 1
+dog, 5
+and, 1
+cat, 5
+dog, 2
+and, 2
+cat, 9
+and, 6
+\end{lstlisting}
+Dopo l’applicazione di una GroupByKey, si hanno gli elementi aggregati:
+\begin{lstlisting}
+cat, [1,5,9]
+dog, [5,2]
+and, [1,2,6]
+\end{lstlisting}
+\subsection{CoGroupByKey}
+Si tratta di un’operazione di aggregazione più complessa, dal momento che corrisponde all’unione relazionale fra due o più PCollection del tipo $ <chiave, valore [, valore_{1}, …, valore_{n}]> $ aventi la stessa chiave, ma valori di tipo diverso. In uscita si hanno le combinazioni degli elementi, dove quelli con la stessa chiave avranno sia gli elementi della prima collezione, sia gli elementi della seconda.
+Un esempio semplice si può fare considerando una rubrica di email e una rubrica telefonica:
+\begin{lstlisting}
+emails_list = [
+('amy', 'amy@example.com'),
+('carl', 'carl@example.com'),
+('julia', 'julia@example.com'),
+('carl', 'carl@email.com'),
+]
+phones_list = [
+('amy', '111-222-3333'),
+('james', '222-333-4444'),
+('amy', '333-444-5555'),
+('carl', '444-555-6666'),
+]
+
+emails = p | 'CreateEmails' >> beam.Create(emails_list)
+phones = p | 'CreatePhones' >> beam.Create(phones_list)
+\end{lstlisting}
+Dopo aver applicato la CoGroupByKey, i dati risultanti saranno la combinazione dei dati, considerando le chiavi uniche:
+\begin{lstlisting}
+results = [
+('amy', {
+'emails': ['amy@example.com'],
+'phones': ['111-222-3333', '333-444-5555']}),
+('carl', {
+'emails': ['carl@email.com', 'carl@example.com'],
+'phones': ['444-555-6666']}),
+('james', {
+'emails': [],
+'phones': ['222-333-4444']}),
+('julia', {
+'emails': ['julia@example.com'],
+'phones': []}),
+]
+\end{lstlisting}
+%% Fine parte generale:
+%% Da qui inizia la parte pratica / sperimentale
+\section{Dataset shuffling}
+Una versione iniziale della parte di generazione dei dati di training prevedeva di mescolare precedentemente, tramite uno script, per ogni epoca di training, il dizionario delle finestre temporali, per poi generare i dati a partire dal dizionario mescolato. Tale dizionario è memorizzato in un file csv, avente il seguente formato:
+\begin{lstlisting}
+{ 'id_finestra_1' : 'gs://uri_pickles/id_finestra_1.pkl' }
+{ 'id_finestra_2' : 'gs://uri_pickles/id_finestra_2.pkl' }
+{ 'id_finestra_3' : 'gs://uri_pickles/id_finestra_3.pkl' }
+\end{lstlisting}
+Uno script Python genera un numero di file equivalente al numero di epoche di training richiesto, avente lo stesso formato ma con i valori mescolati casualmente utilizzando la libreria NumPy, avendo l’accortezza di impostare il seed del generatore pseudo-casuale al numero dell’epoca. Questo è necessario perché il generatore di numeri casuali di NumPy, come qualunque libreria standard, è in realtà un generatore pseudo-casuale. Di conseguenza due generatori inizializzati con lo stesso seed forniranno in realtà la stessa sequenza di numeri \cite{numpyrandomstate}.
+\img[height=8cm]
+{Imgs/dataset1.png}
+{Funzione di shuffling casuale delle finestre in un epoca realizzata in Python. Il seed viene inizializzato al numero di epoca, dato che il generatore di numeri è pseudocasuale: usare lo stesso seed provocherebbe la generazione multipla dello stesso insieme di numeri casuali. }
+{fig:shuffling}
+Una volta generato il file contenente le finestre mescolate casualmente, viene lanciata la pipeline di generazione dei TFRecord, un formato specifico di Tensorflow per memorizzare i dati di training ed evaluation \cite{tensorflow}. La rete neurale generativa che è stata vista in \ref{generativernn} è implementata in Tensorflow e richiede questo formato per la lettura di questi dati.
+\svg
+{Charts/TFRECORD0.pdf_tex}
+{Pipeline di generazione TFRecord di un'epoca. Sopra si ha il file di origine, che contiene un dizionario di finestre di 24 ore generate come indicato su \ref{dataaugmentation}. I blocchi rettangolari sono stadi della pipeline. Il primo legge le singole tuple del dizionario, che è già stato mescolato casualmente. Il secondo emette per ogni tupla il suo URL, il terzo legge il file indicato nell'URL. Il quarto stadio, infine, scrive il contenuto dei file su un TFRecord, rappresentato come un cilindro. }
+{fig:tfrecord0}
+Per ogni epoca, vengono caricati tutti i file contenenti i Pickle, nell’ordine rimescolato, per poi scriverli su dei TFRecord. Osservando il flusso di esecuzione su Dataflow, si può vedere che la parte più impegnativa è data dal caricamento dei file Pickle:
+\img[height=8cm]
+{Imgs/dataflow1.png}
+{Schermata di Dataflow. A sinistra, per ogni stadio della pipeline, è indicato il carico di lavoro richiesto in termini di ore per una CPU singola. A destra, il numero di macchine impiegato per il calcolo distribuito nel corso del tempo di vita della pipeline, distinguendo fra le macchine richieste e quelle effettivamente disponibili. La pipeline è durata mezz'ora, utilizzando contemporaneamente al massimo 70 CPU circa, anche se avrebbe potuto utilizzarne 380. Questo è accaduto perchè la stessa pipeline è stata lanciata insieme ad altre 9, superando il limite complessivo di processori disponibili. }
+{fig:dataflow1}
+Si può notare che il caricamento dei Pickle richiede circa 30 ore di elaborazione, che si riflettono su una scalabilità effettiva a circa 400 macchine. Questa soluzione è poco efficente, dato che richiede di lanciare una pipeline diversa per ogni epoca, operazione che deve essere ripetuta anche centinaia di volte per effettuare training avanzati. I dati dei pickle, inoltre, non cambiano, cambia solo l’ordine in cui vanno scritti sui TFRecord, operazione di gran lunga meno impegnativa osservando il carico di lavoro richiesto. Si sono pensate quindi delle architetture per rendere questa operazione ancora più scalabile.
+\subsection{Soluzione parallelizzata iniziale}
+Inizialmente viene letta la lista degli URI dei Pickle da leggere. Dopodichè, vengono generate tante pipeline quante sono le epoche richieste. Per ogni epoca, vi è una ParDo che esegue la funzione di mescolamento. Tale funzione, nella versione non parallelizzata, veniva lanciata a priori su uno script. Dopodichè un’altra ParDo riceve la lista mescolata dei pickle ed emette, uno per volta, gli URL da cui leggerli. Nella prossima figura si ha lo schema architetturale di questa soluzione:
+\svg
+{Charts/TFRECORD1.pdf_tex}
+{Pipeline di generazione TFRecord di un'epoca. Si ha sempre il file di origine delle tuple con le finestre e l'URL del file che la contiene, però non sarà mescolato. Lo stadio successivo legge quelle tuple ed emette gli URL. A quel punto la pipeline si divide per il numero di epoche richiesto, per semplicità ne sono raffigurate due. Per ogni epoca vengono letti tutti gli URL, rimescolati, poi vengono emessi per essere letti e scritti su TFRecord. }
+{fig:tfrecord1}
+ Tale soluzione, purtroppo, non scala adeguatamente, come si può vedere nella figura seguente:
+\img[height=6cm]
+{Imgs/dataflow2.png}
+{Schermata di Dataflow che rappresenta il numero di macchine usate per la pipeline. Il riquadro rosso in aggiunta evidenzia il calo repentino a 10 macchine richieste e utilizzate. }
+{fig:dataflow2}
+Il carico di lavoro viene automaticamente limitato a 10 macchine, corrispondenti al numero di epoche, ovvero il numero di rami della pipeline impostati nell'esecuzione in figura \ref{fig:dataflow2}. Di conseguenza, l'operazione di lettura dei Pickle avviene in maniera sequenziale rispetto a ciascuna epoca. Questo perché gli URL da cui leggere i pickle vengono emessi uno per volta dalla ParDo precedente, all’interno di un ciclo, operazione che non viene ottimizzata per l’esecuzione in scala. Nella figura seguente si vede la sezione dello schema architetturale di una epoca singola, con evidenziati i punti critici:
+\svg
+{Charts/TFRECORD2.pdf_tex}
+{ Sezione della figura \ref{fig:tfrecord1} della parte con la singola epoca. Il problema è dato dal fatto che prima vengono mescolati tutti gli URL, poi lo stadio successivo li legge per emetterli uno per volta. Questa operazione non è scalabile, dato che esegue iterativamente. Lo stadio successivo, che legge i file, è molto onerosa e per essere eseguita in tempi ragionevoli richiede di essere eseguita in modo distribuito. }
+{fig:tfrecord2}
+\subsection{Soluzione parallelizzata scalabile}
+È stata quindi pensata una versione differente, più complessa, per separare il compito della lettura dei Pickle da quello del loro mescolamento.
+\svg
+{Charts/TFRECORD3.pdf_tex}
+{Pipeline di generazione TFRecord, versione scalabile. Come quella vista in precedenza, vengono create più derivazioni a partire dalla pipeline iniziale. Essendo più complessa, le figure a seguire analizzeranno passo per passo la sua composizione. }
+{fig:tfrecord3}
+Con questa architettura si hanno, nuovamente, un numero di pipeline che partono dalla prima in base al numero di epoche richieste. Questa volta, tuttavia, la lettura dei Pickle viene eseguita “a monte”, a ciascuna singola pipeline spetta il compito di generare un insieme differentemente mescolato di identificatori della finestra. Questi identificatori, che nella versione precedente venivano scartati, verranno usati invece come chiave in una CoGroupByKey per riunire i dati letti dai Pickle con la lista mescolata dell’epoca. Si può vedere nel concreto la parte centrale dell’implementazione, ovvero la pipeline, seguendo il percorso dello schema ideato. Ogni pipeline inizia partendo da un oggetto Pipeline di Beam, poi abbiamo la lettura del CSV con una funzione predefinita di Beam, seguita da una ParDo che estrae le tuple $ <id\_finestra_n, URI_n> $. Queste tuple vengono inserite in una PCollection denominata $ pickleNames $. Questa PCollection viene fornita in input a una ParDo che legge i Pickle relativi ai corrispondenti URI, e manda in uscita tuple $ <id\_finestra_n, PICKLE\_DATA> $ in una PCollection denominata $ picklesTrain $. È importante notare che le PCollection in uscita da Read Pickle conterranno interi file, tuttavia non è un problema grazie alle caratteristiche delle PCollection.
+\svg
+{Charts/TFRECORD4.pdf_tex}
+{Lettura delle tuple e dei Pickle: viene letto il dizionario delle finestre di 24 ore, di cui viene conservato sia l'identificativo sia l'URL. Un primo stadio emette queste singole tuple senza modificarle, quello successivo per ciascuna tupla emette l'identificativo e il contenuto del file nel suo URL. In questo modo la lettura viene eseguita preventivamente, conservando una chiave per ogni file che è stato letto.}
+{fig:tfrecord4}
+Qui sotto si vede una porzione di codice Python riguardante solo la dichiarazione della Pipeline e delle funzioni da applicare in ogni passaggio. È importante osservare che questo permette di avere una netta distinzione fra la \textit{business logic} delle singole operazioni e il flusso dei dati nelle pipelines.
+\img[height=6cm]
+{Imgs/tfrecord1.png}
+{Pipeline in Python. La prima parte è predefinita e definisce l'oggetto Pipeline. La riga che inizia per pickleNames è la parte di pipeline che esegue la lettura dei nomi dal file di testo e ne estrae le tuple con la ParDo definita nella funzione ReadTuples, omessa in questa figura. La riga con picklesTrain prende il risultato della precedente, per leggere il contenuto dei file negli URL, con la ParDo definita su ReadPickle, anch'essa omessa. }
+{fig:tfrecord1}
+A questo punto, per ogni epoca, viene generata una pipeline. Per quanto riguarda pickleNames, essi vengono rimescolati per ogni epoca in tre passaggi:
+\begin{enumerate}
+\item Si genera una coppia $ <epoca, id\_finestra_n> $ per ogni $ id\_finestra_n $
+\item Si raggruppano con una GroupByKey tutti gli $ id\_finestra $
+\item Gli $ id\_finestra $ vengono rimescolati e vengono emesse tuple del tipo $ <epoca, id\_finestra_n> $ , in ordine sparso rispetto a quello di partenza.
+\end{enumerate}
+Queste tuple vengono assegnate alla PCollection $ shuffledEpoch $ .
+\svg
+{Charts/TFRECORD5.pdf_tex}
+{Shuffling della singola epoca. Il primo stadio riceve gli identificativi delle finestre e li associa al numero di epoca del ramo. Ogni ramo della pipeline avrà un identificativo di epoca proprio. Gli identificativi della finestra vengono raggruppati in un'unica collezione, poi vengono mescolati casualmente usando come seed l'epoca corrente. La collezione di identificativi viene iterata, in modo di avere in uscita delle tuple composte dal numero di epoca e un identificativo. Gli identificativi in uscita su shuffledEpoch sono mescolati casualmente rispetto a quelli in ingresso, in ordine, su pickleNames. }
+{fig:tfrecord5}
+A questo punto si ha a disposizione la PCollection $ picklesTrain $ con il contenuto dei Pickle associato alla loro chiave e un’altra PCollection $ shuffledEpoch $ con il progressivo dell’epoca e la chiave dei Pickle, ma in ordine diverso. Avremo tutti gli ID dei pickle ripetuti per il numero delle epoche. Con una GroupByKey si vanno, in un solo colpo, a raggruppare le epoche e a riunire il contenuto dei Pickle:
+\img[height=6cm]
+{Imgs/tfrecord2.png}
+{Parte di codice Python della pipeline, particolare con la CoGroupByKey. Vengono dichiarate come dizionario le due PCollection di cui si vuole effettuare unione, poi si chiama la CoGroupByKey.}
+{fig:tfrecord2}
+\svg
+{Charts/TFRECORD6.pdf_tex}
+{CoGroupByKey fra le chiavi mescolate e i dati dei Pickle caricati. A sinistra vengono prese da picklesTrain le tuple con identificativi e file già letti dai Pickle, da shuffledEpoch le tuple formate da numero epoca e identificativo finestra. Si otterrà una collezione con i dati letti dai file mescolati in ordine diverso. }
+{fig:tfrecord6}
+Infine, avverrà la scrittura dei dati su TFRecord, sempre all’interno della pipeline separatamente per ogni epoca. Questa soluzione garantisce un’alta scalabilità ed efficienza, dal momento che l’operazione più dispendiosa (la lettura dei Pickle) viene eseguita una volta sola e i suoi risultati trasmessi a tutte le pipeline che rimescoleranno e scriveranno i TFRecord di ciascuna epoca.
+Nella prossima figura si ha un ritaglio della schermata di Dataflow sulla pipeline lanciata per la generazione di 50 epoche. Si noti la ReadPickle, che è collegata alle CoGroupByKey di tutte le 50 epoche. Subito sotto si vede l’altro ingresso della CoGroupByKey, ovvero shuffledEpoch.
+
+\img[height=6cm]
+{Imgs/dataflow3.png}
+{Sezione della rappresentazione a blocchi della pipeline su Dataflow. Per ogni blocco, è indicato il tempo CPU complessivo utilizzato. Il compito della lettura dei Pickle, il più oneroso, è stato eseguito una volta soltanto, e viene sfruttato per tutte le epoche della pipeline. }
+{fig:dataflow3}
+Come si può notare, questa pipeline ha scalato con successo al massimo numero di worker possibili. La generazione di 50 epoche, con gli stessi dati e utilizzando la prima versione della pipeline che genera i TFRecord singolarmente avrebbe richiesto 200 minuti complessivamente. Con questa pipeline si impiega $ \frac{1}{3} $ del tempo e vengono consumate $ \frac{1}{4} $ delle risorse.
+\img[height=10cm]
+{Imgs/dataflow4.png}
+{Porzione di schermata di Dataflow con l'allocazione del calcolo distribuito. Sono stati sfruttati tutti i processori a disposizione della piattaforma, per quasi tutto il tempo di esecuzione. }
+{fig:dataflow4}
+Non tutto è perfetto: un problema da non trascurare è che la CoGroupByKey perde l’ordine di entrambe le PCollection in arrivo. Di conseguenza l’ordine delle finestre nei TFRecord risultanti non sarà quello previsto in fase di shuffling.
+
+\section{Training della rete}\label{training}
+Per il training della rete neurale, realizzato con tecnologie Cloud utilizzando Google ML Engine (vedi Appendice \ref{mlengine}: IA Hub), sono stati provati diversi parametri riguardanti il fine tuning della rete, con diverse configurazioni, utilizzando due dataset in particolare. Si andranno a vedere i risultati più rilevanti delle prove con i due dataset realizzati.
+\subsection{Modalità di training della rete}
+La metrica utilizzata per valutare la bontà dei risultati è il Mean Absolute Error (MAE) \cite{witten}. Il Mean Absolute Error è un’alternativa al Mean Squared Error, più robusta rispetto agli outlier, ovvero quelle istanze per cui l’errore di predizione è superiore rispetto a tutte le altre. Il MAE è definito come:
+\[ \frac{ |p_1 - a_1| + ... + |p_n - a_n| }{n} \]
+dove $ p_i $ è il valore predetto e $ a_i $ il valore atteso. Il suo valore è da $ 0 $ a $ +\infty $, dipendentemente dai dati. Per il training sono state utilizzate due modalità principali, con diverse varianti della funzione obiettivo. Queste modalità sono state chiamate “direct” e “feedback”. Nella modalità “direct” abbiamo che per ogni timestep di predizione viene dato in input il valore del training set. Ogni valore predetto sarà confrontato con il valore obiettivo del training set. Nella prossima figura si vede una rappresentazione architetturale della rete in fase di training direct. Si faccia riferimento all'architettura previsionale presentata su \ref{generativernn}: Architettura rete previsionale.
+\svg
+{Charts/TRAINDIRECT.pdf_tex}
+{Training in modalità "direct". Sopra si ha l'ingresso del training set, anche per i timestep in cui la rete dovrebbe fare le previsioni. Sotto viene eseguito il confronto della funzione obiettivo per ogni timestep fra la previsione eseguita e quella ottenuta per la rete. }
+{fig:traindirect}
+In modalità feedback invece i valori predetti vengono utilizzati allo stesso modo in cui andranno utilizzati dopo il training, ovvero come valore di ingresso al timestep successivo. La funzione obiettivo confronterà sempre la previsione di ogni timestep con i valori attesi nel training set. 
+\svg
+{Charts/TRAINFEEDBACK.pdf_tex}
+{Training in modalità "feedback". Vengono forniti i dati del training set alla rete solo fino al timestep "attuale", che sarebbe il $ 1421^{o} $ minuto della giornata nella finestra di 24 ore presa in considerazione, ricordando che il dataset è formato da finestre di 24 ore composte di 1440 minuti (timestep). Le previsioni della rete sono usate per ottenere i valori in input successivi, allo stesso modo in cui farebbe le previsioni dopo il training. I risultati delle previsioni vengono confrontati con quelli attesi attraverso la funzione obiettivo. }
+{fig:trainfeedback}
+\subsection{Risultati con dataset estate 2018}
+Questo dataset è costituito da un training set comprendente tutti i dati da Giugno ad Agosto 2018 e un evaluation set costituito dai dati di Settembre 2018. È emerso in generale che la rete è assimilabile a un \textit{persistence model} \cite{flovik_flovik_2018}, ovvero tende a ripetere semplicemente i dati che gli vengono forniti in ingresso: per ogni segnale, la previsione è che non varierà significativamente, indipendentemente dalle previsioni e dalle precipitazioni in corso. In seguito si ha un caso in cui il fenomeno viene evidenziato. Nella figura \ref{fig:persistence2} si hanno i dati previsionali, dove sono previste delle precipitazioni intense fino alle 19 circa. Nella figura \ref{fig:persistence1} si hanno due fra il sottoinsieme di segnali cui è richiesta la previsione. Il tratteggio arancione e blu è il livello nel training set, le linee continue gialle e blu invece sono l’uscita della rete. Per i primi 20 minuti la previsione è di un rialzo trascurabile dei livelli, così per i successivi 20 minuti, corrispondenti ai 20 timestep di previsione. Poi si passa alla predizione successiva, quando già i livelli sono cresciuti: la rete legge tali livelli e li mantiene allo stesso modo per tutta la durata della previsione. La stessa situazione si ripresenta per tutto il periodo relativo alla precipitazione, sbagliando di fatto le previsioni nel corso degli eventi di maggior interesse.
+\begin{figure}[H]
+\centering
+%\vspace{1cm}
+\img[height=6cm]
+{Imgs/persistence2.png}
+{In questo grafico si vedono i livelli previsti di precipitazioni dalle 17:30 alle 20:00, in cui si ha un evento di interesse. Si verificano precipitazioni dalle 17:30, che salgono progressivamente fino a 20 millimetri alle ore 19. Dopo le 19:15 i livelli di precipitaizone scendono significativamente. }
+{fig:persistence2}
+\img[height=6cm]
+{Imgs/persistence1.png}
+{In questo grafico si vedono due fra i segnali di cui è richiesta la previsione, nello stesso intervallo della figura sopra. In rosso è evidenziata la regione critica, data dalla mancata previsione del rialzo imminente dei livelli di due segnali. Le precipitazioni della regione in analisi sono iniziate alle 17:30, con un picco intensivo alle 19. Questo picco ha provocato un innalzamento dei livelli nel giro di 30 minuti. La rete avrebbe dovuto prevedere questo innalzamento, che tuttavia non è stato previsto. Si vede un rialzo improvviso della previsione dopo 20 minuti, comportamento tuttavia non desiderato dato che si tratta della previsione successiva: la rete tende a mantenere stabili i livelli dei segnali. }
+{fig:persistence1}
+\end{figure}
+
+\subsection{Risultati con dataset pioggia 2018}
+In seguito ai risultati dei training effettuati con il dataset costituito da finestre temporali estratte da tutta l’estate, sono state effettuate delle considerazioni. In particolare, si è ritenuta l’eventualità che la rete avesse recepito un persistence model per il fatto che per buona parte degli esempi non vi è pioggia, quindi effettivamente non vi sono criticità e variazioni improvvise dei livelli dei sensori. Si è pensato quindi di individuare e ricavare delle finestre temporali dal dataset, considerando solo il sottoinsieme di giornate in cui vi sono stati eventi di pioggia.
+Il dataset è costituito da 41 giornate, prese considerando 8 eventi di pioggia e includendo le giornate successiva e precedente a quelle di pioggia.
+\subsubsection{Training direct}
+In prima analisi si verificano i risultati della rete allenata in modalità direct. In seguito si hanno delle rappresentazioni su Tensorboard (si veda \ref{tensorboard}) del valore complessivo del MAE nel corso del training, in blu abbiamo l’andamento del training, in arancione l’evaluation:
+\img[height=6cm]
+{Imgs/tensorboard1.png}
+{Risultati del MAE su Tensorboard per il training "direct". In blu training, in arancione evaluation. Il training continua a scendere, quindi la rete continua a imparare. Il valore medio si attesta su un errore dell'1\%. }
+{fig:tensorboard1}
+Come detto prima, il valore del MAE dipende dall'intervallo dei dati, quindi andrebbe analizzato il suo valore per ogni singolo segnale al fine di determinare quanto sia esattamente l’errore medio in valori scalari rispetto alle metriche delle singole telemetrie, si attesta in generale a un valore medio di errore dell'1\%. Risulta utile per valutare in generale l’andamento del training, per determinare se l’errore complessivamente sta diminuendo come previsto.
+Un’altra metrica presa in considerazione è la tabella di confusione, confrontandone i valori nel corso dell’evoluzione del training. La tabella di confusione viene costruita considerando una classificazione su attributi nominali (o categorici), come “si” e “no”, e confrontando il valore previsto con quello predetto.
+Una buona tabella di confusione ha la diagonale principale con valori vicini al 100\%, e gli altri molto bassi, a indicare che le classi previste sono quelle che vengono effettivamente predette.
+\img[height=5cm]
+{Imgs/witten1.png}
+{Tabella di confusione fra due categorie \cite{witten}.}
+{fig:tensorboard1}
+Dal momento che si stanno considerando valori discreti, per generare la tabella di confusione è stata presa in considerazione una distinzione categorica fra valori “zero”, considerando tutti i valori al di sotto di una soglia di $ 10^{-4} $  e “nonzero”, considerando i valori al di sopra di tale soglia. Questi valori vengono considerati per i dati differenziali, ovvero valutando la differenza di valore di ogni timestep rispetto al precedente.
+\img[height=10cm]
+{Imgs/tensorboard2.png}
+{Tabella di confusione dai risultati del training "direct" su Tensorboard. In alto a sinistra i zeri corretti, in basso a sinistra i zeri scorretti, in alto a destra i valori maggiori di zero scorretti, in basso a destra quelli corretti.} %% Riferimento ad appendice ok
+{fig:tensorboard2}
+Si hanno dei valori significativi sui “false non zero”: questo significa che vengono predette frequentemente variazioni sui segnali, quando in realtà non ci sono. Ci si aspetta di avere un modello più tendente al “caotico” al contrario di un persistence model, che non prevede nessuna variazione. Osservando il training set, la rete esegue correttamente le previsioni, con un certo margine di tolleranza:
+\img[height=9cm]
+{Imgs/grafana1.png}
+{Esempio di predizione  dal modello dopo il training "direct" con dataset "pioggia", su dati del training set. Si tratta dello stesso periodo preso in considerazione nella figura \ref{fig:persistence1}. Al contrario dell'altro modello, vengono previsti subito i rialzi dei livelli in seguito all'arrivo delle precipitazioni, per tutti i segnali critici in considerazione. } 
+{fig:grafana1}
+Le previsioni rispetto all’eval set evidenziano maggiormente il comportamento caotico intuito osservando le metriche. Infatti, soprattutto durante i fenomeni di pioggia, le previsioni tendono ad evidenziare una costante crescita o decrescita dei livelli. È importante sottolineare che il valore medio di queste previsioni si scosta poco rispetto al valore atteso, insieme al fatto che non si tratta di un persistence model.
+\img[height=9cm]
+{Imgs/grafana2.png}
+{Esempio di predizione  dal modello dopo il training "direct" con dataset "pioggia", su dati dell'eval set. Rispetto al training set l'andamento è più caotico, ma prevede correttamente l'innalzamento dei livelli.} 
+{fig:grafana2}
+\subsubsection{Training feedback}
+Il Mean Absolute Error generale del training differenziale presenta valori inferiori rispetto al training “diretto”. Una prima impressione potrebbe essere di avere una rete più precisa rispetto all’altra.
+\img[height=6cm]
+{Imgs/tensorboard3.png}
+{Risultati del MAE su Tensorboard per il training "feedback". In blu il training, in arancione l'evaluation. In questo caso sembrerebbe che l'evaluation stia avendo valori ottimi, ma verranno visti subito dopo i risultati effettivi.} 
+{fig:tensorboard3}
+Osservando la particolare matrice di confusione “zeros/nonzeros” si nota che il numero di “false zeros” è un ordine di grandezza superiore rispetto all’altra rete, tendendo ad aumentare. Anche il numero di “true zeros” è di un ordine di grandezza superiore.
+\img[height=10cm]
+{Imgs/tensorboard4.png}
+{Tabella di confusione dai risultati del training "feedback" su Tensorboard. Un numero inferiore di segnali erroneamente maggiori allo zero sembrerebbe suggerire una previsione più precisa. } 
+{fig:tensorboard4}
+Andando ad osservare l’output previsionale della rete, si nota di avere di nuovo ottenuto un persistence model: ogni 20 minuti si ha uno “scatto” del livello, che si allinea all’ultima lettura ricevuta, e persiste per i 20 minuti successivi, ovvero i minuti di previsione. Di conseguenza, la metrica MAE espone la correttezza generale dei segnali in uscita dalla rete, senza tenere conto della bontà delle sole previsioni.
+\img[height=9cm]
+{Imgs/persistence3.png}
+{Esempio di previsione tipo "persistence model" con il training "feedback". Si ha nuovamente un andamento simile a quello visto su figura \ref{fig:persistence1} sull'evaluation set.} 
+{fig:persistence3}

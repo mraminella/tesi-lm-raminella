@@ -1,0 +1,26 @@
+Per fare ciò, si fondono iterativamente le nuvole di punti appartenenti a coppie di visuali. Considerando due nuvole di punti $S'$ contenenti gli $n$ punti della prima visuale ed $S''$ gli $m$ elementi della seconda ed assumendo che tutti i punti appartengano alla scena, sarà quindi:
+
+$$S' \doteq \{p'_k\} \quad \forall k = (1 \ldots n)$$
+
+$$S'' \doteq \{p''_l \} \quad \forall l = (1\ldots m)$$
+
+Inoltre se $p'_k = [x'_k,y'_k,z'_k]$, $p''_l = [x''_k,y''_k,z''_k]$ e assumendo inoltre che il cambio di visuale sia una rototraslazione rigida varrà anche:
+$$ 
+\begin{bmatrix} x'' \\	y'' \\z'' \end{bmatrix} = 
+\begin{bmatrix}  r_{11}  &  r_{12}  &  r_{13} \\
+r_{21}  &  r_{22}  &  r_{23} \\
+r_{31}  &  r_{32}  &  r_{33} 
+\end{bmatrix} 
+\cdot 
+\begin{bmatrix} x' \\	y' \\z' \end{bmatrix}
++
+\begin{bmatrix} t_x \\	t_y \\t_z \end{bmatrix}
+$$
+
+In cui la matrice $3 \! \times \! 3$ $R = [ r_{ij} ] $ rappresenta la rotazione e il vettore $[t_x t_y t_z]^T$ la traslazione del sensore tra le due visuali.
+
+Per ricavare i 9 valori della matrice $R$ (che essendo ortogonale ha 3 gradi di libertà\footnote{I valori di una matrice ortogonale di rotazione hanno $n(n-1)/2$ gradi di libertà, ovvero dipendono dall'angolo della rotazione su ciascuno dei 3 assi $x$,$y$ e $z$ }) , è necessario avere almeno 3 punti le cui coordinate siano già in note ed in corrispondenza in entrambe le visuali\footnote{in realtà usando più punti è possibile migliorare la precisione della matrice, adoperando tecniche di regressione ai minimi quadrati}.
+
+I punti scelti a tale scopo sono quelli che, secondo determinati criteri sono considerati salienti, quindi facilmente riconoscibili al variare della visuale: i \textit{keypoint}.  
+
+Fatto ciò, compiendo il prodotto matriciale tra tutte i punti della prima visuale per la matrice così ricavata, l'insieme dei punti risultanti da quest'operazione, unito a quello della seconda visuale genererà una nuvola di punti contenente i punti catturati in entrambe le visuali, ma con il sistema di riferimento della seconda.

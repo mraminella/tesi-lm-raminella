@@ -1,0 +1,186 @@
+\chapter{Un problema di Data Science}\label{problema}
+Questa tesi è risultato di un tirocinio presso il reparto di Ricerca e Sviluppo di Injenia Srl, azienda Premier Partner Google.  Durante questo tirocinio è stato studiato uno dei progetti di Data Science seguiti dal team ed è stata progettata e realizzata una sua parte importante. Tale progetto consiste nella realizzazione di una PoC (Proof of Concept) funzionante di un sistema previsionale in tempo reale con utilizzo di tecniche Big Data e Machine Learning per un cliente di Injenia.
+Per motivi di riservatezza sono evitati riferimenti specifici al cliente e alla tipologia di impianto di cui ci si sta occupando. %cs
+\section{Il problema}
+Il cliente dispone di un sistema centralizzato per gestire i propri impianti idrici, collegati al terreno, che vengono influenzati dalle condizioni meteo. Egli ha messo a disposizione le telemetrie dei sensori relativi a tali impianti e delle stazioni meteo della regione in cui sono allocati. Abbiamo a disposizione, inoltre, previsioni meteo sulle precipitazioni dell’intera regione in cui tali impianti sono allocati fisicamente. 
+Un sottoinsieme dei segnali relativi a parti di tale impianto si rivela di vitale importanza per effettuare azioni concrete al fine di evitare lo scatenarsi di eventi potenzialmente dannosi, sia per gli impianti del cliente, sia per le infrastrutture che utilizzano tali impianti. L’obiettivo iniziale è la realizzazione di un PoC funzionante per prevedere l’andamento futuro dei segnali su un perimetro limitato degli impianti. Sono quindi state fatte scelte esplicite al fine di dimensionare adeguatamente il sottoinsieme di dati presi in considerazione per limitare sia la dimensione del progetto, sia il perimetro preso in considerazione.
+
+\section{Il dataset}
+La soluzione ideata è caratterizzata dall’utilizzo di tecniche di Deep Learning applicato alle serie temporali per poter realizzare previsioni sui segnali richiesti, sfruttando al meglio i dati a disposizione. Una serie temporale è l'andamento di un fenomeno nel tempo. Considerato un solo fenomeno, la serie temporale che lo rappresenta in un certo intervallo temporale è caratterizzata da una serie di valori, ognuno con un proprio istante. Ogni valore è valido dall'istante che lo caratterizza fino a quello del valore successivo. Questo tipo di dato ha delle caratteristiche in comune al testo, alla musica, o anche alle sequenze di DNA \cite{aggarwal}: si tratta di dati caratterizzati da sequenze, dove esiste una stretta correlazione fra ogni elemento consecutivo. In figura ~\ref{fig:serie} vediamo l'esempio di una serie temporale.
+\img[height=6cm]
+{Imgs/serie.png}
+{Una telemetria rappresentata come serie temporale in un intervallo dalle 16:30 alle 17 di una certa giornata. Per ogni puntino si ha un valore, in questa serie ci sono valori ad intervalli fissi di 15 secondi. Dalle 16:30 alle 16:38 circa ha valore 264.5, poi sale a 268 fino alle 16:39:45. Alle 16:40 si ha un nuovo valore di 264, che persiste nelle successive letture fino alle 16.47, dove la nuova lettura ha nuovamente valore 268. Prosegue così via salendo ogni qualche minuto, fino a ottenere alle 16:57 valore 276. }
+{fig:serie}
+
+L’intera soluzione è stata ideata per poter realizzare tutte le operazioni di computazione in maniera scalabile utilizzando le tecnologie allo stato dell’arte relative ai Big Data e al Machine Learning. L'obiettivo di questo capitolo è mostrare in maniera generale le parti principali dell’architettura e le loro funzioni.
+
+\subsection{Generazione dataset}
+In un progetto di Data Science, il compito iniziale consiste nell’analizzare i dati a disposizione e decidere come poterli utilizzare al meglio, al fine di realizzare un modello di Machine Learning che compia lo scopo richiesto. Tale modello avrà bisogno di dati strutturati in un certo modo per poter essere allenato e funzionare nel modo desiderato. In questo caso d’uso, abbiamo a disposizione due fonti di dati:
+
+\begin{itemize}
+	\item SCADA
+	\item Dati meteo
+\end{itemize}
+
+\subsubsection{SCADA}
+Un sistema SCADA  (Supervisory Control And Data Acquisition) è un sistema centralizzato di controllo che può gestire impianti e sistemi distribuiti in una vasta superficie territoriale.~\cite{panzieri} Questo è possibile grazie alla suddivisione del sistema in:
+\begin{itemize}
+	\item MTU: Master Terminal Unit
+	\item RTU: Remote Terminal Unit
+\end{itemize}
+Le MTU caratterizzano il sistema centrale di controllo e sono connesse alle RTU. Le MTU contengono il software di interfacciamento a sensori ed attuatori e l’interfaccia grafica, che può essere distribuito e installato in sedi geograficamente distaccate. Le RTU forniscono informazioni sui dispositivi ad esse connessi e permettono di controllare, in remoto, eventuali dispositivi o attuatori. L'implementazione utilizzata dal cliente è in grado di fornire altissima scalabilità e granularità nella gestione dei sistemi.
+I dati dei sensori provenienti da SCADA sono caratterizzati da tre elementi principali:
+\begin{itemize}
+	\item Tag
+	\item Valore
+	\item Timestamp
+\end{itemize}
+Il \textit{Tag} identifica univocamente il sensore, che invierà una lettura ogni qualvolta vi è una variazione rispetto al valore precedente. Questa lettura avrà un proprio \textit{Timestamp}, che indica l’istante di tale lettura, e un certo valore.
+Nello SCADA del cliente sono presenti le telemetrie relative a 11311 sensori. Questi sono collegati a diversi tipi di impianto, localizzati in regioni a remota distanza. La selezione dei segnali da utilizzare nel sistema previsionale è stata fatta sulla base dell'analisi dei processi operativi preesistenti del cliente, ritenuto esperto della fonte delle informazioni. Egli ha determinato un sottoinsieme dei sensori provenienti da SCADA relativi al perimetro degli impianti di interesse, raccogliendo tutti quelli necessari al fine di realizzare la PoC per gli impianti presi in considerazione. Si tratta in particolare di 51 sensori costituiti da:
+\begin{itemize}
+	\item Tutti i sensori per la direzione e velocità del vento della regione dove è collocato l’impianto
+	\item Livelli delle vasche
+	\item Livelli dei condotti interconnessi
+	\item Stato degli attuatori (pompe)
+	\item Livello di apertura delle paratoie di interconnessione. 
+\end{itemize}
+%In ambito accademico sarebbe stato indispensabile eseguire una analisi dettagliata sui dati delle telemetrie dell’insieme dei sensori degli impianti, andando ad analizzare le correlazioni fra le distribuzioni nell’intero dataset, scegliendo il sottoinsieme di segnali da tenere in considerazione con un approccio data-driven. In questo ambito industriale, invece, abbiamo il requisito di sviluppare con costi e tempi contenuti un prototipo funzionante. Effettuare una analisi dettagliata dell’intero dataset non era negli obiettivi del cliente, che ha definito esplicitamente il sottoinsieme dei sensori di cui effettuare lo studio.
+ I dati relativi al meteo e alle stazioni metereologiche vengono tenuti tutti in considerazione, dato che sono stati ritenuti di vitale importanza.
+Nella seguente figura vediamo la schermata dello SCADA relativa alle stazioni meteo del cliente. Per ogni stazione meteo, si ha l’intensità di precipitazione di pioggia. Eventualmente, si hanno anche i dati di un sensore di intensità e direzione del vento.
+
+\img[height=6cm]
+{Imgs/scada1.png}
+{Schermata dello SCADA con i sensori direzione e velocità vento della regione (watermark per NDA).}
+{fig:scada1}
+
+Nella seguente figura vediamo la schermata dello SCADA che rappresenta uno degli impianti presi in considerazione. Sono stati considerati tutti i segnali relativi ai livelli idrici, per quanto riguarda le pompe non sono stati considerati i valori non ritenuti di rilevanza, come il consumo o il voltaggio.
+
+\img[height=6cm]
+{Imgs/scada2.png}
+{Schermata del sistema SCADA di uno degli impianti.}
+{fig:scada2}
+\subsubsection{Dati Meteo}\label{sectionmeteo}
+I dati meteo mettono a disposizione del cliente previsioni sulle precipitazioni distribuite su una griglia di 450 punti equidistanti. Le previsioni sono disponibili a 20, 40 e 60 minuti. Quelle a 20 minuti vengono trascurate perché sono fornite con eccessivo ritardo. Nella seguente figura vediamo una rappresentazione di come i dati meteo sono localizzati in una regione presa in considerazione. Per ogni punto avremo a disposizione una previsione.
+
+\img[height=6cm]
+{Imgs/radarmeteo1.png}
+{Esempio di matrice di punti meteo. Ogni punto, visto come un pixel in questa figura, avrà una certa quantità di precipitazione prevista: un pixel più scuro rappresenta un maggiore quantitativo. }
+{fig:radarimg}
+
+Le telemetrie dei sensori e i dati meteo possono essere rappresentati come delle serie temporali.
+\subsection{Modello previsionale}
+È stato studiato un tipo di rete neurale realizzata per poter identificare e lavorare questo tipo di sequenze: i Recurrent Neural Networks, che vedremo nel seguito. 
+\section{Reti Neurali}
+Le reti neurali artificiali sono una tecnica diffusa di Machine Learning che simula il modello condiviso fra i biologi per rappresentare i neuroni e il sistema nervoso che li collega. La struttura elementare è il neurone, noto anche come Perceptron.
+\img[height=6cm]
+{Imgs/perceptron.png}
+{Un neurone o Perceptron ~\cite{witten}.}
+{fig:neurone}
+Un Perceptron contiene uno strato di segnali di input e un nodo di output. Il nodo di output è una combinazione lineare degli input, moltiplicati per il loro peso $ w_{i} $. L’uscita del Perceptron può essere matematicamente descritta con la seguente formula:
+\[ w_{0}+w_{1}a_{1}+w_{2}a_{2}+...w_{k}a_{k}=0 \]
+
+Per poter funzionare, una rete neurale ha bisogno di una fase di apprendimento (o \textit{learning}), durante la quale viene sottoposta a una insieme conosciuto di esempi per i quali è noto l’obiettivo richiesto. L’insieme conosciuto è detto dataset di \textit{training}. L’addestramento (o \textit{training}) viene eseguito sottoponendo la rete a tali esempi, andando a modificare i pesi delle connessioni fra i neuroni per ottenere l’output desiderato. Per testare i risultati ottenuti è opportuno verificare, tramite una qualche metrica, l’uscita della rete con un altro dataset di esempi noti, quest’ultimo noto come dataset di \textit{evaluation}. La bontà della rete neurale sarà determinata dai risultati della evaluation: se la rete “funziona” correttamente con i dati di training, ma non con quelli di evaluation, significa che è andata in \textit{overfitting}, dal momento che ha semplicemente memorizzato i dati in ingresso, piuttosto di ricavare una funzione più generale per realizzare lo scopo richiesto.
+Il perceptron che abbiamo visto sopra è in grado di apprendere tramite addestramento una funzione lineare che distingue oggetti di due classi differenti. Nella figura in seguito vediamo un semplice esempio in cui abbiamo la classe “+” e la classe “-“. Quello che viene appreso dal perceptron è la linea che separa le regioni in cui queste due classi si trovano. Il nostro perceptron quindi, ricevendo un nuovo elemento “+”, darà la stessa uscita che ha appreso dagli altri esempi “+”.
+\img[height=6cm]
+{Imgs/iperpiano.png}
+{Esempio di un iperpiano con elementi separabili linearmente~\cite{witten}.}
+{fig:iperpiano}
+Le funzioni che, moltiplicate per il peso, collegano gli attributi agli output, dette \textit{funzioni di attivazione}, sono tipicamente diverse dalla moltiplicazione lineare. Questo permette di ottenere separazioni anche fra regioni non separabili linearmente. Combinando più perceptron, realizziamo uno strato di rete neurale, che permette di avere più di una uscita. Questo permette di distinguere fra più di due tipi diversi di elementi, avendo una cardinalità maggiore di valori in uscita.
+\subsection{Reti Neurali Multistrato e Profonde}
+Per apprendere funzioni più complesse, si possono organizzare più perceptron in una struttura gerarchica, realizzando una rete multi-strato. Gli strati intermedi vengono chiamati \textit{hidden layer}, in quanto non sono collegati direttamente all’ingresso o all’uscita. Se abbiamo più di un hidden layer si parla di Reti Neurali Profonde, note come \textit{Deep Network}. 
+Nella prossima figura vediamo un esempio di rete neurale multistrato. Abbiamo un primo strato di input, che non esegue alcuna computazione, dal momento che abbiamo 5 perceptron con solamente un ingresso e tre uscite. Al centro abbiamo due hidden layer, costituiti da tre perceptron ciascuno. Tutti i perceptron sono collegati a tutti i segnali dello stato precedente, in questo caso si parla di uno strato \textit{fully connected}, noto anche come \textit{dense}. Ogni connessione avrà il proprio peso. Infine, in uscita, abbiamo un perceptron che combina le uscite del secondo strato hidden.
+\img[height=6cm]
+{Imgs/deepnetwork.png}
+{Esempio di una rete neurale multistrato~\cite{aggarwal}.}
+{fig:deepnetwork}
+Esistono moltissimi tipi di reti neurali multistrato, valide per i casi d’uso più disparati, con tipi di strati e caratteristiche ben più complessi di quelli mostrati fino a qui. Una caratteristica essenziale dei dati che vengono utilizzati in queste reti è l’atomicità, ovvero la separazione fra gli elementi. Questa caratteristica è valida, per esempio, se consideriamo diverse immagini e abbiamo bisogno di classificare l’oggetto raffigurato in ciascuna immagine. Nella prossima figura vediamo qualche esempio di classificazione di una rete neurale realizzata per il concorso annuale ImageNet, che dal 2010 rappresenta lo stato dell’arte nell’identificazione automatica del contenuto di immagini. Abbiamo una serie di immagini, per ognuna di esse viene identificato cosa vi è rappresentato.
+\img[height=6cm]
+{Imgs/imagenet.jpg}
+{Alcune classificazioni di immagini della ImageNet challenge~\cite{imagenet}. Ogni immagine è classificata da un Deep Network a un possibile oggetto o animale, con una affidabilità indicata fra parentesi.}
+{fig:imagenet}
+Ognuna di queste immagini è a sé stante, e non vi è alcuna correlazione fra un’immagine e quella successiva. Di conseguenza la rete può considerare ogni ingresso completamente indipendente rispetto al successivo o al precedente. Questa caratteristica non vale per il dato in analisi nel nostro caso, che sono serie temporali.
+
+\subsection{Reti Neurali Ricorrenti}
+% Le serie temporali hanno la caratteristica intrinseca di introdurre una dipendenza fra un singolo valore e quelli che lo precedono o seguono, dato che rappresentano l'evoluzione dello stesso fenomeno. (ripetizione)
+Per il Deep Learning sui dati caratterizzati da frasi di testo, serie temporali e altre sequenze discrete come il DNA, sono state ideate delle tipologie di reti note come Reti Neurali Ricorrenti. Questo tipo di reti permette di realizzare una interazione fra neuroni che ricevono gli elementi singoli di queste sequenze.
+Vediamo un esempio elementare di una rete di questo tipo. Supponiamo di voler realizzare una rete che impara la frase “the cat chased the mouse”. Abbiamo una rete con un singolo strato nascosto, che imparerà per ogni parola la probabilità di quella successiva, considerando anche il passato. Il vettore $ w_{hh} $ collega i neuroni dello strato nascosto con sè stessi, al momento in cui riceveranno la parola successiva.
+In figura \ref{fig:rnn} a sinistra vediamo la rappresentazione architetturale, a destra vediamo come si comporta nella progressione dell’intera frase: a un primo istante viene sottoposta la parola “the” prevedendo in uscita “cat”, al secondo istante si ha in ingresso “cat” e si prevede in uscita “chased”, e così via. Osservando la connessione $ w_{hh} $ vediamo che per ogni istante i neuroni dello strato nascosto produrranno anche un’ulteriore uscita, che costituirà lo stato iniziale all’iterazione successiva.
+\img[height=6cm]
+{Imgs/rnn.png}
+{Esempio di una rete neurale ricorrente~\cite{aggarwal}. A destra è mostrata l'architettura, a sinistra il comportamento con l'andare del tempo: all'istante 1 la rete ha in input "the" e manda in input "cat", all'istante 2 ha in input "cat" e in uscita "chased", eccetera.}
+{fig:rnn}
+Questo tipo di reti è in grado di apprendere solo sequenze semplici, non è in grado di apprendere e prevedere correttamente un modello complesso che richiede di tenere conto di dipendenze di lunga distanza. Per apprendere questo tipo di modelli sono stati ideate le reti \textit{Long Short-Term Memory}~\cite{hochreiter}, caratterizzate da RNN con una funzione di risposta allo stato modificata. Questo consente di avere un controllo fine sullo stato per ottenere una memoria di lungo termine.
+Nella figura in seguito vediamo uno spaccato in cui si vede la differenza fra una cella RNN e una cella LSTM. Vediamo che la RNN ha una connessione diretta dallo stato precedente, mentre la cella LSTM ha diversi collegamenti, ognuno con una propria funzione attivazione e un proprio peso.
+\img[height=6cm]
+{Imgs/rnn1.png}
+{Rappresentazione con l'interno di una cella RNN. A destra abbiamo lo stato precedente, in centro lo stato corrente, a destra lo stato futuro della stessa cella ~\cite{colah}.}
+{fig:rnn1}
+\img[height=6cm]
+{Imgs/lstm1.png}
+{Rappresentazione con l'interno di una cella LSTM. Notare i diversi blocchi di retroazione con i pesi separati.~\cite{colah}.}
+{fig:lstm1}
+Non è scopo di questo documento scendere nei dettagli matematici o implementativi che riguardano la realizzazione di questo tipo di reti, tuttavia si andrà a vedere l’architettura realizzata nel progetto per poter sfruttare le serie temporali derivanti da telemetrie e meteo. Questo è necessario per capire i requisiti necessari alla realizzazione dei dataset per il training di questa rete.
+Un concetto essenziale quando si parla di serie temporali è il \textit{timestep}. Esso è un’unità elementare di tempo in un Recurrent Neural Network, e caratterizza il singolo istante temporale. Nel nostro caso, l’unità elementare sarà il valore delle telemetrie e del meteo in un certo intervallo di tempo. Quello che si vuole fare è rappresentare tutti i segnali e i dati meteo sotto forma di una sequenza di valori a intervalli predefiniti, e fare in modo che la nostra rete impari a prevedere l’andamento futuro dei segnali degli impianti di interesse.
+\subsection{Il modello NMT}
+Il modello di Deep Neural Network realizzato per questo progetto prende ispirazione dal modello Neural Machine Translation (seq2seq) ~\cite{sutskever}, nato per realizzare la traduzione automatica di frasi. Caratteristica essenziale di questo tipo di rete è la raccolta delle informazioni storiche di una sequenza per ottenere uno stato iniziale, compito realizzato da una prima porzione della rete. Questo stato iniziale viene usato per attivare la porzione di rete che esegue la previsione degli istanti successivi.
+Queste due porzioni vengono chiamate rispettivamente \textit{encoder} e \textit{decoder}. La parte encoder è costituita da un RNN con celle LSTM di cui l’uscita sarà trascurata, in modo da concentrare le informazioni storiche di più timestep in uno stato iniziale. La rete decoder riceverà lo stato iniziale e realizzerà previsioni per un numero definito di timestep. Per ogni cella successiva alla prima saranno ricevuti lo stato e la previsione ottenuti allo stadio precedente. La figura seguente rappresenta l’architettura di questa rete, si faccia attenzione ai colori delle frecce: in grigio abbiamo i vettori dei campioni al singolo istante, in rosso i vettori dello stato.
+\svg
+{Charts/RNN2.pdf_tex}
+{Architettura NMT. I quadrati con $ T_{n} $ sono i timestep, ovvero i valori a intervalli temporali fissi. I blocchetti quadrati sono le singole celle LSTM, sopra hanno il dato in ingresso e sotto il dato in uscita (la predizione). Nel decoder le predizioni sono trascurate, vengono conservati solo gli stati. Le frecce rosse sono lo stato, che viene trasferito da una cella a quella successiva. $ T0 $ è l'istante attuale, tutti gli istanti successivi sono predizioni. Mano a mano che il tempo scorre, il dato in ingresso scorre verso sinistra: i dati più vecchi del passato (in questa figura $ T-4 $ è il dato più vecchio) vengono scartati, facendo entrare da destra le informazioni più recenti. } 
+{fig:nmt1}
+\subsubsection{Architettura rete previsionale}\label{generativernn}
+In aggiunta alla NMT, la rete progettata per il PoC di questo caso d’uso prevede di inizializzare anche la rete encoder, realizzando un ulteriore stato iniziale. L’idea è di raccogliere il maggior numero di dati possibili dal passato, considerando un istante temporale sufficientemente ampio per gli eventi di interesse, senza rendere la rete eccessivamente complessa \cite{leguennec}. Inoltre, le previsioni meteo delle precipitazioni vengono utilizzate come ingresso della rete decoder, considerando quindi le previsioni future di precipitazione. Esse vengono prima compresse da una rete fully connected, per ridurre la dimensionalità del dato e ridurre la complessità della rete decoder.
+\svg
+{Charts/RNNARCHSIMPLE1.pdf_tex}
+{Architettura rete previsionale semplificata. A sinistra si ha la rete di generazione dello stato iniziale, che comprime le telemetrie del passato tramite strati di convoluzione. Al centro la rete encoder NMT, che riceve i dati dei sensori più recenti. A destra la rete decoder, che riceve il valore attuale dei sensori e le previsioni di precipitazione. } 
+{fig:nmt1}
+Lo stato iniziale dell’encoder viene ottenuto “comprimendo” i dati dai timestep precedenti attraverso un Deep Neural Network costituito da multipli strati di tipo convoluzionale. Una rete convoluzionale è caratterizzata da strati di reti neurali connessi seguendo l’operatore di convoluzione, anziché strati fully connected (dense). Queste reti sono utilizzate in ambiti dove esiste forte dipendenza locale dei dati, essendo molto più efficienti delle reti dense \cite{aggarwal}.
+\svg
+{Charts/conv1d.pdf_tex}
+{Primo stadio convoluzionale della rete previsionale. Sopra si ha un ampio intervallo temporale dei segnali, che viene compresso da un primo strato di rete convoluzionale a 256 valori. Segue con altri strati convoluzionali, fino a ottenere 64 valori. Quei valori saranno i rispettivi stati iniziali delle celle del primo timestep della rete encoder NMT. }
+{fig:conv1d}
+Una volta ottenuto lo stato iniziale, che comprime le informazioni più “vecchie” dei segnali, viene alimentata la rete di encoder NMT, la quale alimenta a sua volta la rete decoder, che esegue le previsioni vere e proprie.
+% in realtà il motivo per cui la dimensionalità è stata fatta con una fully connected è perchè la quantità di punti è ragionevole e perchè si  è ritenuto di conservare la località dei dati fra stazioni meteo vicine.
+I dati riguardanti le previsioni meteo vengono presi in considerazione solo nello stadio decoder, dal momento che non ha senso osservare i dati previsionali per eventi che sono già accaduti, avendo a disposizione informazioni in tempo reale su vento e precipitazioni. Essendo i dati delle previsioni meteo di grande cardinalità (vedi  \ref{sectionmeteo}), viene ridotta la dimensionalità, tramite una rete multistrato fully connected. Si è scelta una rete fully connected perchè la dimensionalità dell'ingresso è ragionevole (450 valori) per cui l'utilizzo di strati convoluzionali renderebbe questa porzione di rete particolarmente ridotta. Si è ritenuto importante conservare la località dei dati, dal momento che le previsioni possono variare sia dal punto di vista spaziale che temporale.
+\svg
+{Charts/RNN3.pdf_tex}
+{Dimensionality reduction dei dati meteo. Sopra si hanno in ingresso tutti i punti geografici con il proprio valore previsionale di precipitazione. Multipli strati fully connected riducono la dimensionalità fino ad arrivare a un vettore di 16 valori.}
+{fig:rnn3}
+
+I fenomeni critici, di cui il cliente richiede sia previsto l’andamento e le conseguenze sugli impianti, sono i rovesci e i nubifragi. Essi sono eventi di durata breve ma intensa, soliti presentarsi ed estinguersi con rapidità giornaliera \cite{giuliacci_giuliacci_corazzon_2010}. Inoltre, l’andamento dei segnali varia di una ampiezza trascurabile per intervalli inferiori ai 60 secondi. Per questi motivi, tenendo conto dei requisiti del cliente, sono state fatte le seguenti scelte per quanto riguarda il dimensionamento della rete:
+\begin{itemize}
+	\item I timestep sono di 1 minuto
+	\item Le previsioni sono di 20 minuti
+	\item Si considera complessivamente 1 giornata ai fini delle previsioni
+\end{itemize}
+In seguito a primi test empirici sulle prestazioni della rete, lo stato è dimensionato a un vettore di 64 elementi, come visto in figura \ref{fig:conv1d} e i timestep sono stati partizionati fra i tre stadi della rete nel seguente modo:
+\newline
+%\begin{table}[htb]
+%	\centering
+	\begin{tabular}{|lll|}
+		\hline
+		\textbf{Stadio della rete}                           & \textbf{Numero timestep} & \textbf{Tempo}   \\ \hline
+		\textit{Decoder (previsione)}                        & 20                       & 20 minuti        \\
+		\textit{Encoder (dati storici recenti)}              & 240                      & 4 ore            \\
+		\textit{Convoluzionale (dati storici lungo termine)} & 1180                     & 21 ore 40 minuti \\ \hline
+	\end{tabular}
+\newline\newline
+%	\caption{Distribuzione dei timestep nell'architettura previsionale.}
+%	\label{tab:timestep-table}
+%\end{table}
+La stessa suddivisione è visibile nell'architettura in figura \ref{fig:rnnarchtimes}.
+\begin{figure}[H]
+	\centering
+	%\vspace{1cm}
+	\begin{adjustbox}{max size={\textwidth}{\textheight}}
+		\begin{tikzpicture}
+		\node[fill=white, blur shadow] 
+		{
+			\scalebox{1.2}{\input{Charts/RNNARCHSIMPLE.pdf_tex}}
+		};
+		
+		\end{tikzpicture}
+	\end{adjustbox}
+	\caption{Architettura rete previsionale delle timeseries. Per ogni strato, rappresentato da un blocco intero grigio, sopra vi è l'ingresso, sotto l'uscita, a destra l'uscita dello stato finale. A sinistra si ha la rete convoluzionale del passato, che genera lo stato iniziale dell'encoder NMT. Al centro vi è l'encoder NMT, di cui si conserva solo lo stato finale. A sinistra il decoder NMT, che riceve il valore attuale delle telemetrie e del meteo, ed esegue le previsioni delle telemetrie. }
+	\label{fig:rnnarchtimes}
+\end{figure}

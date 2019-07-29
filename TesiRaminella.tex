@@ -1,0 +1,128 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[italian]{babel}
+\usepackage{bold-extra}
+\usepackage{setspace}
+%\usepackage[scaled]{helvet}
+\usepackage{lmodern} %% font bellini
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{gensymb}
+\usepackage{graphicx}
+\usepackage{mdframed}
+\usepackage{tikz}
+\usepackage{float}
+\usepackage{parskip}
+\usepackage{adjustbox}
+\usetikzlibrary{shadows.blur}
+\usepackage[autostyle, italian=guillemets]{csquotes}
+\usepackage{guit} 
+\usepackage{amsmath, amssymb}
+\usepackage[margin=20pt,font=small,labelfont=bf]{caption}
+\usepackage[backend=bibtex, style=ieee]{biblatex}
+\usepackage{svg} %% libreria svg, serve veramente?
+\usepackage{listings} %% codice (va bene solo per pezzi piccoli)
+\usepackage{hyperref} %% riferimenti cliccabili
+\bibliography{bibliografia} 
+
+%\renewcommand\familydefault{\sfdefault} 
+
+\newcommand{\img}[4][]
+{	%
+	\begin{figure}[H]
+		\centering
+		%\vspace{1cm}
+		\begin{adjustbox}{max size={\textwidth}{\textheight}}
+		\begin{tikzpicture}
+			\node[blur shadow, fill=white] 
+			{
+				\includegraphics[#1]{#2}    
+			};
+			
+		\end{tikzpicture}
+		\end{adjustbox}
+		\caption{#3}
+		\label{#4}
+	\end{figure}
+}
+
+\newcommand{\svg}[4][]
+{	%
+	\begin{figure}[H]
+		\centering
+		%\vspace{1cm}
+		\begin{adjustbox}{max size={\textwidth}{\textheight}}
+		\begin{tikzpicture}
+		\node[fill=white, blur shadow] 
+		{
+			\input{#2}    
+		};
+		
+		\end{tikzpicture}
+		\end{adjustbox}
+		\caption{#3}
+		\label{#4}
+	\end{figure}
+}
+\newcommand{\code}[3][]
+{	%
+	\begin{figure}[H]
+		\centering
+		%\vspace{1cm}
+		\begin{adjustbox}{max size={\textwidth}{\textheight}}
+			\begin{tikzpicture}
+			\node[fill=white, blur shadow] 
+			{
+				\includegraphics[#1]{#2}    
+			};
+			
+			\end{tikzpicture}
+		\end{adjustbox}
+		\label{#3}
+	\end{figure}
+}
+
+\newcommand{\Norm}[1]{ \left\lVert {#1} \right\rVert}
+
+\textwidth=450pt\oddsidemargin=0pt
+
+
+\begin{document}
+	
+\thispagestyle{empty}
+\input{1-frontespizio.tex}
+
+\thispagestyle{empty}
+\input{2-dedica.tex}
+
+\pagenumbering{roman}
+\onehalfspacing
+\tableofcontents
+\pagebreak
+
+\pagenumbering{arabic}
+\input{3-introduzione.tex}
+
+\input{4-problema.tex}
+
+\input{5-dataset-training.tex}
+
+\input{6-pipeline-batch.tex}
+
+\input{7-pipeline-streaming.tex}
+
+\input{8-samplehold-streaming.tex}
+
+\input{9-conclusioni.tex}
+
+\appendix
+\input{10-appendice-gcp.tex}
+
+
+\printbibliography
+\pagebreak 
+
+\thispagestyle{empty}
+\pagenumbering{gobble}
+\input{11-ringraziamenti.tex}
+
+\end{document}

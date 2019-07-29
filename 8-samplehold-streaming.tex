@@ -1,0 +1,450 @@
+\chapter{Sample and Hold in Streaming}\label{sampleholdstream}
+È stato visto nella sezione \ref{sample} il problema del campionamento dei segnali, che richiede di avere un campione per tutti i valori delle telemetrie ogni 15 secondi, per poi aggregare i valori e ottenere campioni a 1 minuto. Questi ultimi tengono conto correttamente dell'andamento di ciascun segnale e vengono utilizzati come input della rete neurale, dove ogni minuto rappresenta un timestep. Nella fase di realizzazione del dataset di training si avevano a disposizione tutte le telemetrie e i dati meteo necessari, per ottenere i campioni ogni 15 secondi era sufficente eseguire la query InfluxDB vista su \ref{fig:influx1}. Una volta preparata la rete per ottenere le previsioni, la si può utilizzare con i segnali e il meteo in tempo reale. Un primo problema affrontato è quello del campionamento con la tecnica Sample and Hold supponendo di avere le letture segnali in streaming. Si potrebbe ipotizzare di scrivere direttamente le letture su InfluxDB con una ingestione periodica, che in effetti funzionerebbe, avendo però i seguenti limiti:
+\begin{itemize}
+	\item Alcuni segnali non inviano alcun dato nuovo per svariate ore, dato che non cambiano
+	\item L'operazione di Sample and Hold con InfluxDB andrebbe eseguita su un intervallo di ore, dando per certo che in esso tutti i segnali abbiano avuto almeno una lettura
+	\subitem Ogni richiesta è onerosa in termini di tempo
+	\subitem Non scalerebbe bene su un numero maggiore di sensori
+	\subitem InfluxDB non è affidabile sulle query troppo impegnative e potrebbe smettere di rispondere per un tempo indefinito
+	\item Tale operazione andrebbe ripetuta ogni 20 minuti
+\end{itemize} 
+Per questi motivi si è ritenuto indispensabile realizzare una architettura più affidabile e veloce, studiata appositamente per trasformare i dati in tempo reale. Le letture dei sensori e del meteo vengono mandati su Google PubSub e sono processati da una pipeline in streaming che prepara in tempo reale i dati nel formato necessario ad eseguire le predizioni sull'andamento dei successivi 20 minuti. Nella prossima figura vediamo una rappresentazione sintetica di questa architettura, per quanto riguarda la parte dei sensori.
+\svg
+{Charts/ARCHPREDICT.pdf_tex}
+{Architettura sistema previsionale. Abbiamo gli eventi su PubSub provenienti direttamente da SCADA, questi eventi vengono processati in tempo reale per lanciare previsioni aggiornate con il modello predittivo. La nuvoletta rappresenta un topic PubSub, il cilindro rappresenta un database, i blocchi gialli su Dataflow sono processi di trasformazione dei dati, il blocco SCADA rappresenta il sistema SCADA del cliente, il modello predittivo su MLEngine è il modello allenato, il blocco UI è l'interfaccia utente finale. Ogni elemento dell'architettura realizzata si trova in un piano che indica la tecnologia utilizzata per esso. Su PubSub abbiamo Google PubSub, su InfluxDB abbiamo un database di Influx, su Beam/Dataflow ogni blocco è una pipeline differente, infine MLEngine il blocco è un modello predittivo.}
+{fig:predict}
+Scopo del progetto realizzato durante il tirocinio è stato in particolare eseguire il campionamento in tempo reale delle telemetrie dei sensori. L'operazione principale è data dal mantenimento della memoria dell'ultimo valore letto da ogni sensore, per ripeterlo se non dovesse esserci una nuova lettura nell'arco di 15 secondi successivo.
+%% Sarà meglio che metta delle figure e una spiegazione molto chiara del problema. Durante il Workshop, infatti, questa spiegazione non era sufficiente e non si era capito quale fosse il problema.
+Per capire meglio questa problematica vediamo un esempio pratico: consideriamo 3 sensori e un intervallo da 0 a 60 secondi. Dai tre sensori arrivano le seguenti letture:
+\begin{enumerate}
+	\item Sensore 1:
+	\subitem 5 secondi, valore 1
+	\subitem 35 secondi, valore 1.5
+	\subitem 50 secondi, valore 2
+	\item  Sensore 2:
+	\subitem 7 secondi, valore 100
+	\subitem 54 secondi, valore 120
+	\item Sensore 3:
+	\subitem 5 secondi, valore 50 
+\end{enumerate}
+Ogni 15 secondi vogliamo un campione che contiene la lettura più recente di quel sensore.
+\svg
+{Charts/SENSORI1.pdf_tex}
+{Esempio di campionamento Sample and Hold. Sul'asse orizzontale abbiamo il tempo da 0 a 60 secondi. Le nuvolette gialle sono le letture dei sensori in arrivo su PubSub, i blocchi azzurri sono i campioni ottenuti come risultato a intervalli di 15 secondi.}
+{fig:sensoriesempio}
+Per ottenere il risultato desiderato, potremmo utilizzare il Windowing per suddividere i dati per sensore, usando il Tag del sensore come chiave, in finestre fisse di 15 secondi. Avremo quindi le letture divise per sensore e per intervallo. Nessun sensore pubblica letture alla stessa frequenza, che è tipicamente superiore ai 15 secondi, sarebbe indispensabile avere una memoria dell'ultimo valore ricevuto. Tutte le operazioni elementari di Beam viste su \ref{beamoperations} hanno la caratteristica di essere atomiche e senza memoria. Per risolvere questo problema, si è pensato di studiare una nuova caratteristica di Beam, le Stateful ParDo.
+\section{Stateful ParDo}\label{statefulpardo}
+Questo tipo di operazione condivide tutte le caratteristiche della ParDo vista su \ref{pardo}, in aggiunta si hanno diversi contenitori di stato e timer. Questi sono conservati solamente all'interno della stessa chiave e finestra temporale. Infatti, un vincolo generale di questa trasformazione è l'utilizzo di tuple del tipo $ <chiave, valore [, valore_{1}, …, valore_{n}] > $.
+\img[height=9cm]{Imgs/StateAndTimers.png}
+{Rappresentazione del funzionamento di una ParDo Stateful \cite{knowles_2017_timely}. Sopra abbiamo i dati in ingresso, con 3 chiavi differenti: "giallo", "verde" e "rosso". Per ogni elemento processato, la Stateful ParDo contiene un proprio stato all'interno della stessa chiave. Ci sono inoltre tre timer: due conservati per la chiave "rosso" e uno per la chiave "giallo". Sotto si hanno gli elementi in uscita dopo il processamento.}{arg4}
+\subsection{Tipi di stato}
+Sono disponibili due contenitori generici che possono memorizzare lo stato: ValueState e BagState. Il primo memorizza un valore soltanto, mentre il secondo è un buffer non ordinato di elementi.
+\subsubsection{ValueState}
+Questo contenitore permette di memorizzare un valore di qualunque tipo serializzabile. Si supponga di voler definire una Stateful ParDo in Java che riceve in input una PCollection come tupla $ <chiave,valore> $ di tipo $ <String,Integer> $ e in uscita una PCollection di tipo $ String $. Inoltre si definisce uno stato di nome \textit{time} che contiene un valore di tipo Instant:
+\begin{lstlisting}
+ParDo.of(new DoFn<KV<Integer,String>,String>(){
+	@StateId("time")
+	private final StateSpec<ValueState<Instant>> 
+		currTimestamp = StateSpecs.value();
+	...
+}	
+\end{lstlisting}
+In questo modo è stata definita la ParDo e il contenitore dello stato. All'interno della ProcessElement di questa ParDo, sarà necessario richiamare lo stato precedentemente definito, come parametro della funzione di processamento:
+\begin{lstlisting}
+@ProcessElement
+public void processElement(ProcessContext c,
+@StateId("time") ValueState<Instant> currTimestamp
+) {
+	.. business logic processamento ..
+}
+\end{lstlisting}
+Nella business logic si può sovrascrivere il valore memorizzato con  \texttt{currTimestamp.write(valore)} o leggere l'ultimo che è stato scritto con \texttt{currTimestamp.read()}. Nel caso in cui non vi sia alcun valore memorizzato, la \textit{read} restituisce un valore \textit{Null}.
+\subsubsection{BagState}
+Questo contenitore permette di memorizzare più elementi. È buona pratica contenere il numero massimo di oggetti memorizzati nel buffer, dato che aumenta l'overhead del processamento. Come per ValueState, può essere definito un contenitore per un tipo qualunque di oggetto serializzabile:
+\begin{lstlisting}
+ParDo.of(new DoFn<KV<Integer,String>,String>(){
+@StateId("buffer")
+private final StateSpec<BagState<Event>> 
+bufferState = StateSpecs.bag();
+...
+}
+
+@ProcessElement
+public void processElement(ProcessContext c,
+@StateId("buffer") BagState<Event> bufferState
+) {
+.. business logic processamento ..
+}
+}	
+\end{lstlisting}
+Nella business logic si possono inserire valori nel buffer attraverso la funzione \textit{add}: \texttt{bufferState\allowbreak.add(valore)}, leggere l'intero buffer con \texttt{bufferState\allowbreak.read()} e ottenere un oggetto \textit{Iterator} con cui scorrere gli elementi del buffer con \texttt{\allowbreak bufferState\allowbreak.read()\allowbreak.iterator()}.
+\subsection{Timer}\label{statefultimers}
+Oltre ai contenitori di stato, vengono offerti due tipi di timer. Questi possono essere impostati ogni qualvolta viene letto un nuovo valore e scattano nel momento in cui si verifica la condizione impostata.
+\subsubsection{Event Time}
+L'istante che determina lo scattare di un Event Time Timer è determinata dal Watermark degli eventi ricevuti. Questo significa che una volta impostato il timer a un certo istante, questo scatterà nel momento in cui il Watermark avrà raggiunto tale istante. Nell'esempio che segue si vede un Event Time Timer chiamato \texttt{expiry} impostato all'istante di fine finestra dell'evento letto dalla \texttt{ProcessElement}.
+\lstset{language=Java}
+\begin{lstlisting}
+new DoFn<Event, EnrichedEvent>() {
+@TimerId("expiry")
+ private final TimerSpec expirySpec =
+  TimerSpecs.timer(TimeDomain.EVENT_TIME);
+
+@ProcessElement
+ public void process(
+ ProcessContext context,
+ BoundedWindow window,
+ @TimerId("expiry") Timer expiryTimer) {
+  expiryTimer.set(window.maxTimestamp().plus(allowedLateness));
+  ...
+}
+
+@OnTimer("expiry")
+ public void onExpiry(
+  OnTimerContext context,
+  @StateId("buffer") BagState<Event> bufferState) {
+  ...
+  }
+}
+\end{lstlisting}
+Il timer \texttt{expiry} scatterà qualora il Watermark raggiunga l'istante di fine finestra dell'ultimo Event processato. Ciò potrebbe accadere qualora non venga ricevuto alcun Event per un intervallo superiore a \texttt{EVENT\_TIME}. Il parametro \texttt{BoundedWindow window} permette di conoscere lo stato del Watermark degli elementi processati, nonchè le proprietà sull'eventuale processo di Windowing effettuato. Ogni volta che viene chiamata la \texttt{ProcessElement}, il timer viene reimpostato all'istante di fine finestra di quell'Event, con il metodo \texttt{timer.set(window.maxTimestamp().plus(RITARDO))}. Quando il timer scatta, viene eseguita la routine dichiarata sulla funzione con il decorator \texttt{@OnTimer} .
+\subsubsection{Processing Time}
+L'istante che determina lo scadere di un Processing Time Timer è determinato dal tempo di esecuzione della pipeline stessa. Questo tipo di timer permette di controllare il flusso di emissione dei dati, permettendo di impostare un attesa massima prima di avere dei dati in uscita. Nell'esempio che segue si ha un timer \texttt{stale} che viene impostato a \texttt{MAX\_BUFFER\_DURATION}, pari a un secondo, ogni volta che viene processato un elemento dalla \texttt{ProcessElement}. In questo modo si ha che se trascorre più di un secondo dopo l'ultimo elemento processato, il timer scatta.
+\begin{lstlisting}
+new DoFn<Event, EnrichedEvent>() {
+private static final Duration MAX_BUFFER_DURATION =
+ Duration.standardSeconds(1);
+
+@TimerId("stale")
+ private final TimerSpec staleSpec =
+  TimerSpecs.timer(TimeDomain.PROCESSING_TIME);
+
+@ProcessElement
+public void process(
+ ProcessContext context,
+ BoundedWindow window,
+ @TimerId("stale") Timer staleTimer) {
+  staleTimer.offset(MAX_BUFFER_DURATION).setRelative();
+  ...
+ }
+
+@OnTimer("stale")
+ public void onStale(
+ OnTimerContext context) {
+  ...
+ }
+}
+\end{lstlisting}
+Si noti che la differenza rispetto a un Event Time timer è data dal metodo usato per impostare il timer: in questo caso si usa il metodo \texttt{timer.offset(DURATA\_TIMER)\allowbreak.setRelative();} che imposta il ritardo in termini di tempo relativo rispetto all'istante di processamento. La routine eseguita allo scattare del timer è sempre determinata dalla funzione con il decorator \texttt{@OnTimer}
+\subsection{Supporto Python}
+Dato che tutte le pipeline implementate nell'architettura del progetto visto in questo documento sono scritte in Python, si è pensato inizialmente di realizzare anche questa nello stesso linguaggio. Le Stateful ParDo alla data della realizzazione di questo progetto non erano ancora ufficialmente implementate \cite{beam2687}, tuttavia era disponibile una prima implementazione non documentata\cite{beam4594}. Essa è stata testata ricavando le API dal codice degli Unit Test inclusi alla prima versione. Dopo una prima prova, a runtime si incorre nel seguente avviso:\newline\newline
+\texttt{\allowdisplaybreaks
+WARNING:root:Key coder FastPrimitivesCoder for transform
+ <ParDo(PTransform) label=[sample:hold]> with stateful DoFn
+may not be deterministic. This may cause incorrect behavior
+ for complex key types. Consider adding an input type hint 
+ for this transform.
+}\newline\newline
+Che suggerisce di utilizzare gli input \textit{type hint} di Python, per evitare un comportamento che "potrebbe non essere deterministico". Infatti, testando con una pipeline che conta gli elementi in ingresso, è emerso che lo stato viene conservato occasionalmente, spesso viene perso. I type hint permettono di eliminare la type inference di Python \cite{shannon_mark_2014} andando a dichiarare il tipo delle variabili preventivamente. Questo approccio è stato scartato perchè renderebbe l'uso di Python verboso al punto di perdere i vantaggi dati dal linguaggio stesso e potrebbe non aver risolto comunque il comportamento non desiderato, come conferma il fatto che in una versione successiva, disponibile al tempo della redazione del presente documento, ma non ancora al momento della realizzazione del progetto, sono stati corretti dei bug che rendevano le Stateful ParDo in Python non affidabili \cite{beam7035}. Inoltre, sull'implementazione Beam di Python mancano anche i Trigger visti sul capitolo \ref{pipelinestreaming}, togliendo di fatto il controllo sul flusso di processamento dei dati, affidandolo completamente al Watermark. Si è scelto invece di sfruttare tutte queste caratteristiche e di implementare l'intera pipeline in Java, che le supporta stabilmente.
+\section{Architettura}
+L'obiettivo che si vuole raggiungere è di avere una pipeline di processamento dati in tempo reale che sia in grado di ricevere in streaming tutte le letture in arrivo dai sensori collegati allo SCADA, filtrare il sottoinsieme interessato e di questo generare campioni a intervalli di 15 secondi. Per verificare la correttezza della trasformazione, si vuole inizialmente scrivere il risultato in tempo reale su un database di Influx.
+\svg{Charts/STREAMING1.pdf_tex}
+{Architettura di riferimento: i riquadri in giallo mostrano operazioni eseguite in streaming. Il "JSON Tag sensori" contiene la lista di sensori cui è richiesto il ricampionamento, che rimane fissa per tutta la durata della pipeline.}{fig:streaming1}
+Per ottenere il requisito richiesto è stata progettata e realizzata una pipeline in streaming con diversi stadi, ogni stadio sarà analizzato passo passo, evidenziando le criticità incontrate. Per manipolare il tipo di dato (eventi di un sensore), è stato creato un oggetto denominato Event che caratterizza la singola lettura. Ogni Event avrà:
+\begin{itemize}
+\item Tag che identifica il sensore
+\item Valore della lettura
+\item Data della lettura
+\end{itemize}
+Oltre ad Event, che rappresenta il modello del dato, sono state identificate alcune responsabilità principali della pipeline. Queste responsabilità sono state trasformate in classi astratte, classi e funzioni seguendo i principi SOLID \cite{martin2000design}: 
+\begin{itemize}
+\item Singola responsabilità: ogni oggetto deve avere una sola funzionalità
+\item Open-closed: aperto alle estensioni, chiuso alle modifiche. Una classe può estendere un'altra, aumentandone le funzionalità ma senza modificarne il funzionamento esistente.
+\item Liskov substitution, o principio della sostituibilità di Liskov: un sottotipo (un oggetto che ne estende un altro) deve poter essere usato allo stesso modo del tipo di livello superiore
+\item Interface segregation: Una interfaccia deve contenere collezioni di metodi che vengono usati assieme, senza incorporare metodi non correlati
+\item Dependency inversion: Le interfacce vengono utilizzate per non far dipendere le classi di alto livello (nel nostro caso, la pipeline) dall'implementazione (per esempio, la ProcessElement di una ParDo).
+\end{itemize}
+Si hanno quindi le classi:
+\begin{itemize}
+\item SampleAndHoldPipeline, che contiene la parte principale della pipeline
+\item PipelineOptions, con tutte le opzioni di esecuzione
+\item SampleAndHold, con la logica della Stateful ParDo e altre funzioni connesse alla gestione del tempo
+\item InputOutput, classe astratta con le funzioni \textit{read} e \textit{write} che rappresentano, rispettivamente, il punto di ingresso e di uscita della pipeline
+\item PubSubInput che implementa il metodo \textit{read} leggendo gli Event da un topic PubSub
+\item PubSubInflux che implementa il metodo \textit{write} scrivendo gli Event su una tabella di InfluxDB.
+\end{itemize}
+\svg{Charts/UML.pdf_tex}{UML delle class sintetico. SampleAndHoldPipeline è la classe che contiene la pipeline, Event è l'astrazione della lettura di un sensore, SampleAndHold contiene la logica del campionamento stateful, PubSubInput e PubSubInflux contengono rispettivamente i metodi di lettura da PubSub e scrittura su InfluxDB.}{fig:uml}
+Insieme a queste ci sono anche le classi SensorsUtils, SensorsJsonParser e SampleAndHoldUtils con metodi statici di utilità.
+La pipeline può essere vista come un flusso unico, che inizia con la lettura da PubSub e poi finirà con il dato campionato correttamente. 
+\subsection{Lettura da PubSub e filtraggio}
+La prima parte si occupa della lettura degli oggetti Event a partire dalle letture in arrivo su un topic PubSub e di eseguire alcune operazioni di filtraggio preliminari. 
+\svg{Charts/STREAMING3.pdf_tex}{Prima parte della pipeline: legge gli eventi da pubsub, filtra i tag interessati dalla lista fornita in JSON, ricava i segnali seno e coseno a partire dai segnali direzione vento.}{fig:streaming3}
+ Viene prima letta la lista dei \texttt{TAG} validi, definiti su un file JSON dei sensori da filtrare.
+\begin{lstlisting}
+Map<String,String> acceptedTagIDs =
+ SensorsJsonParser.parseSensors("sensori.json");
+\end{lstlisting}
+Viene poi creata un'istanza di InputOutput. L'implementazione realizzata legge gli eventi da PubSub, riceve la mappa dei TAG accettati e li filtra direttamente. Si ha una PCollection di Event in streaming. Questa PCollection riceverà elementi in tempo reale, mano a mano che arrivano letture dai sensori di interesse. 
+\begin{lstlisting}
+io = new PubSubInflux();
+PCollection<Event> allEvents = 
+ io.readSensors(p, options, acceptedTagIDs);
+\end{lstlisting}
+ In questo file ci sono anche alcuni \texttt{TAG} che finiscono per \texttt{\_SIN} e \texttt{\_COS} : sono segnali relativi a sensori di direzione vento, che però non vengono forniti direttamente, è presente invece lo stesso sensore con il valore dell'angolo. Viene prima identificato il sottoinsieme di tali tag, poi calcolato il seno e il coseno di tali angoli, generando i due segnali aggiuntivi.
+\begin{lstlisting}
+acceptedTagIDs.putAll(
+ SensorsUtils.filterSinEvents(acceptedTagIDs));
+PCollection<Event> filteredEvents =
+ SensorsUtils.filterSinCosEvents(
+ allEvents, acceptedTagIDs);
+\end{lstlisting}
+Si ha quindi una PCollection di Event che conterrà l'intero insieme dei sensori interessati, compresi quelli fittizi di seno e coseno direzione vento. 
+\subsection{Windowing}
+Il passaggio successivo è l'applicazione del Windowing per la suddivisione degli Event, ovvero delle letture dei sensori, in finestre fisse di 15 secondi. 
+\svg{Charts/STREAMING4.pdf_tex}{Windowing degli eventi sensori. Vengono usate delle Fixed Window di ampiezza 15 secondi.}{fig:streaming4}
+Duration è una classe di Beam per definire le durate di tempo. Fra le opzioni della pipeline abbiamo la frequenza di campionamento, che è impostata a 15 secondi.
+\begin{lstlisting}
+Duration samplingFrequency = 
+ Duration.standardSeconds(options.getSamplingFrequency());
+\end{lstlisting}
+Vengono applicate delle Fixed Window di ampiezza 15 secondi:
+\begin{lstlisting}
+PCollection<Event> windowedEvents = 
+ filteredEvents.apply(
+   "windowing", Window.<Event> 
+   into(FixedWindows.of(samplingFrequency)
+  )
+\end{lstlisting}
+\subsection{Trigger}
+Nella sezione \ref{trigger} si sono visti i Trigger, che consentono di controllare il flusso dell'elaborazione dei dati. Per il caso d'uso di questa pipeline si hanno due requisiti fondamentali:
+\begin{itemize}
+\item I campioni devono essere in ordine temporale: sarebbe altrimenti necessario riordinarli in seguito, operazione non auspicabile in quanto dispendiosa in termini di computazione e tempo.
+\item Il ritardo in cui i campioni vengono resi disponibili deve essere ragionevole, altrimenti le previsioni verrebbero fornite con frequenza insufficiente.
+\end{itemize}
+Sulla base di queste considerazioni sono stati utilizzati dei Repeated Update Trigger con attivazione Unaligned Delay di 15 secondi, pari alla frequenza di campionamento. Il comportamento è di tipo Discarding, quindi non vengono ripetute letture già inviate al resto della pipeline. Il framework Beam impone di impostare una Allowed Lateness anche per i Repeated Update Trigger (nella sezione \ref{trigger} si era vista per i Completeness Trigger). Essa è stata empiricamente impostata a 5 minuti, tuttavia si può diminuire per ottenere un ritardo inferiore.
+\begin{lstlisting}
+FixedWindows.of(samplingFrequency))
+ .triggering(Repeatedly.forever(
+  AfterProcessingTime.pastFirstElementInPane()
+   .plusDelayOf(samplingFrequency))) // Unaligned Delay
+ .withAllowedLateness(allowedDelay)  // Allowed Lateness
+ .discardingFiredPanes()             // Discarding
+\end{lstlisting}
+Questa finora è parsa la configurazione con il miglior rapporto prestazioni-stabilità, in sezione \ref{testerisultati} vedremo altre configurazioni che sono state provate e i risultati ottenuti.
+\subsection{CombineByKey}
+Il passaggio successivo è l'allineamento del timestamp di ciascun evento all'istante di fine finestra, dal momento che si vogliono avere tutti i campioni a distanza di 15 secondi. Per fare ciò, vengono raggruppati gli Event utilizzando come chiave il loro TAG. Come visto nella sezione \ref{windowing}, dopo l'applicazione della GroupByKey avviene l'effettiva suddivisione per finestre temporali, di conseguenza si avranno collezioni di eventi sensori suddivisi per finestra, ma con timestamp variabile all'interno di essa. Si vogliono avere i timestamp degli eventi sensori allineati all'istante di fine della rispettiva finestra temporale. Questo viene realizzato utilizzando la CombineByKey con una funzione di aggregazione personalizzata e una successiva ParDo realizzata allo scopo di allineare il timestamp.
+\svg{Charts/STREAMING5.pdf_tex}{Allineamento dei timestamp all'istante di fine finestra. Questo avviene con una CombinePerKey usando come chiave i TAG degli eventi sensori e una successiva ParDo che allinea il timestamp di ciscun evento al suo fine finestra.}{img:streaming5}
+La prima operazione in particolare è necessaria dato che una caratteristica di PubSub, come visto su \ref{pubsub}, è la garanzia di delivery at-least-once, che potrebbe portare ad avere ripetizioni dello stesso evento.
+\img{Imgs/streamingwindow.png}{Raggruppamento dei sensori per TAG all'interno delle finestre temporali fisse di 15 secondi. Una lettura potrebbe essere ripetuta, ad esempio per Sensore 1 è stata ricevuto due volte il valore "1" nell'intervallo da 0 a 15 secondi, similmente per Sensore 2 con il valore 22 ripetuto nell'intervallo fra 45 e 60 secondi.}{img:streamingwindow}
+Per realizzare questo raggruppamento viene prima estrapolata la chiave da ciascun Event, in modo di realizzare coppie $ <TAG,Event> $:
+\begin{lstlisting}
+PCollection<Event> windowKeyEvents =
+windowedEvents.apply("KeyElements",ParDo.of(
+ new DoFn<Event,KV<String,Event>>(){
+   @ProcessElement
+   public void processElement(ProcessContext c) throws Exception {
+    String key = c.element().getTag();
+    c.output(KV.of(key, c.element()));
+   }
+ }
+));
+\end{lstlisting} 
+Poi viene utilizzata una CombinePerKey. Si tratta dell'unione di due operazioni:
+\begin{enumerate}
+	\item GroupByKey, che in questo caso raggruppa gli Event per TAG e per finestra temporale, ottenendo delle collezioni \texttt{Iterable<Event>}
+	\item ParDo, con il vincolo di avere in ingresso una collezione \texttt{Iterable<T>} e in uscita un singolo \texttt{T}. Tale funzione di aggregazione combinerà gli elementi nella collezione per ottenere un elemento in uscita. Beam offre alcune funzioni di aggregazione predefinite, come la media. Si possono definire funzioni di aggregazione personalizzate. In questo caso è stata realizzata una funzione che mantiene solo l'Event con timestamp più recente.
+\end{enumerate}
+La funzione di aggregazione è \texttt{SelectLastEvent}, che deve implementare l'interfaccia \texttt{SerializableFunction<Iterable<T>,T>}. Questa funzione viene utilizzata per applicare la CombinePerKey. La PCollection \texttt{windowEarlyEvents} conterrà quindi per ogni finestra temporale l'evento più recente al suo interno.
+\begin{lstlisting}
+public static class SelectLastEvent 
+implements SerializableFunction<Iterable<Event>, Event> {
+ // cerca l'evento recente ...
+}
+
+PCollection<KV<String,Event>> windowEarlyEvents = 
+ windowEvents
+  .apply(Combine.<String,Event>perKey(new SelectLastEvent()));
+\end{lstlisting}
+Dopodichè una successiva ParDo allinea il timestamp degli Event al timestamp di fine finestra. Il metodo statico \texttt{sampleEvents} della classe SampleAndHold contiene l'implementazione della ParDo realizzata a questo scopo.
+\begin{lstlisting}
+PCollection<KV<Long,Event>> sampledEvents =
+ SampleAndHold.sampleEvents(windowEarlyEvents)
+\end{lstlisting}
+\subsection{Stateful ParDo}\label{statefulimplem}
+Ciò che si è ottenuto finora sono campioni allineati a distanza di 15 secondi dell'insieme di sensori interessato. Ogni sensore invia un valore a frequenza arbitraria, di conseguenza non avremo un campione ogni 15 secondi di tutti i sensori, ma solo di quelli che hanno inviato una lettura in quell'intervallo.
+\svg{Charts/SENSORI2.pdf_tex}{Risultato dopo la divisione in finestre e l'allineamento del timestamp. Si ottengono campioni solo per quei sensori che hanno inviato una lettura nell'intervallo di 15 secondi precedente al campione stesso. In questo esempio, sono considerati tre sensori. Nell'intervallo da 0 a 15 secondi, tutti e tre hanno una lettura, quindi si ottiene un campione per ciascuno di essi all'istante 15. Nessun sensore invia una lettura fra 15 e 30 secondi, per cui non si ha nessun campione. Nell'intervallo fra 30 e 45 secondi si ha una lettura solo da Sensore 1, per cui si ha un campione solo per esso all'istante 45, e così via.}{fig:sensori2}
+L'operazione di mantenere il valore più recente nei campioni successivi costituisce la parte "Hold" del metodo "Sample and Hold". A tale scopo si è pensato di utilizzare una Stateful ParDo che riceve in ordine le letture allineate, tiene memoria dell'ultimo valore letto da ciascun sensore e qualora non ci sia un valore aggiornato emette un campione dell'ultimo valore ricevuto. Vengono quindi innanzitutto raggruppati tutti i campioni dello stesso istante in un'unica collezione.
+\svg{Charts/STREAMING6.pdf_tex}{Raggruppamento dei campioni allineati con lo stesso timestamp in una unica collezione.}{fig:streaming6}
+\begin{lstlisting}
+PCollection<KV<Long,Iterable<Event>>> groupedSampledEvents =
+ sampledEvents.apply(GroupByKey.<Long, Event>create())
+\end{lstlisting}
+Come visto nella sezione \ref{statefulpardo} la memoria dello stato è mantenuta solo all'interno della stessa chiave e finestra. Dato che le operazioni da compiere sfruttando il Windowing sono terminate, gli elementi vengono riportati a una unica finestra globale. L'effetto di questa operazione è quello di avere in ingresso alla ParDo gli elementi processati secondo l'ordine e la frequenza determinati dai Trigger che sono stati impostati.
+Questo richiede un fine tuning preciso di questi, dato che si potrebbero avere elementi fuori ordine (che renderebbe impossibile avere un campionamento corretto) o un ritardo complessivo eccessivo.
+\svg{Charts/STREAMING7.pdf_tex}{Global Window, che riunisce gli elementi in una finestra unica, e la Stateful ParDo vera e propria.}{fig:streaming7}
+Viene anche applicata una chiave unica, dato che la Stateful ParDo impone in ingresso elementi del tipo \texttt{KV<T1,T2>}.
+\begin{lstlisting}
+PCollection<KV<Integer,Iterable<Event>>> singleKeyEvents = 
+ groupedSampledEvents
+  .apply(Window.<KV<Long,Iterable<Event>>>
+   into(new GlobalWindows())) // unica finestra globale
+  .apply("singlekey", ParDo.of(
+   new DoFn<KV<Long,Iterable<Event>>,KV<Integer,Iterable<Event>>>(){
+    // applico chiave singola.. 
+   }))
+;
+\end{lstlisting}
+A questo punto abbiamo delle collezioni di Event raggruppate per timestamp pronte per essere inviate in streaming alla Stateful ParDo. 
+\begin{lstlisting}
+PCollection<Iterable<Event>> holdEvents =
+ SampleAndHold.holdGlobalWindow(singleKeyEvents,acceptedTagIDs);
+\end{lstlisting}
+Gli stati mantenuti sono due:
+\begin{itemize}
+\item il timestamp dell'ultima collezione ricevuta e non scartata (perchè in ritardo), chiamato \texttt{time}, di tipo ValueState
+\item il buffer con le letture più recenti di ciascun sensore, chiamato \texttt{events}, di tipo BagState.
+\end{itemize}
+La ParDo riceve inoltre la lista dell'insieme dei sensori richiesti su \texttt{wantedSensorsMap}. Si noti che la \texttt{return} non determina il momento in cui saranno mandati in output elementi alla PCollection in uscita, sarà la funzione di output ad aggiungere elementi, attraverso la funzione \texttt{output(Event e)} di \texttt{ProcessContext}.
+\begin{lstlisting}
+public static PCollection<Iterable<Event>>
+ holdGlobalWindow(
+  PCollection<KV<Integer,Iterable<Event>>> timestampEvent,
+  final Map<String,String> wantedSensorsMap
+  )
+   {
+    PCollection<Iterable<Event>> sampleAndHoldEvents = 
+     timestampEvent.apply(
+     "holdEvents", ParDo.of(
+      new DoFn<KV<Integer,Iterable<Event>>,Iterable<Event>>(){
+       @StateId("events")
+        private final StateSpec<BagState<Event>> bufferState =
+         StateSpecs.bag();
+       @StateId("time")
+        private final StateSpec<ValueState<Instant>> currTimestamp = 
+        StateSpecs.value();
+       
+       @ProcessElement
+        public void processElement(ProcessContext c,
+        @StateId("events") BagState<Event> bufferState,
+        @StateId("time") ValueState<Instant> currTimestamp
+        ) {
+         // Business logic ParDo..
+        });
+    return sampleAndHoldEvents;
+   }
+\end{lstlisting}
+Si mantiene una mappa dei sensori attualmente considerati validi su \texttt{currentSensorsMap}, dove la chiave è il TAG del sensore. Si memorizza il timestamp della collezione di letture ricevuta su \texttt{currEventDate}. Si possono verificare le seguenti casistiche:
+\begin{enumerate}
+\item Si ha una prima lettura, quindi la pipeline è appena stata avviata
+\subitem Vengono inizializzati i valori iniziali del timestamp attuale a 15 secondi dopo la lettura corrente.
+\subitem Viene riempito il buffer con i valori più recenti. Per i sensori di cui non si ha ancora un valore, lo si inizializza a 0.
+\item Si ha una collezione di letture con timestamp pari a quello atteso, ovvero 15 secondi dopo l'ultima ricevuta
+\subitem Viene aggiornato il timestamp attuale a 15 secondi dopo la lettura corrente
+\subitem Vengono aggiornati i valori nel buffer
+\subitem Viene emesso un campione per tutti i sensori
+\item Si ha una collezione di letture con timestamp successivo alla precedente, ma con distacco maggiore ai 15 secondi
+\subitem Si creano campioni ripetendo i valori memorizzati nel buffer fino a raggiungere il timestamp delle letture aggiornate
+\subitem Una volta raggiunto il timestamp pari alla collezione ricevuta, si procede come al punto 1.
+\item Si riceve una collezione di letture con timestamp precedente all'ultima
+\subitem Sono arrivate in ritardo o fuori ordine: vengono scartate.
+\end{enumerate}
+Per motivi di spazio non è riportato l'intero codice della business logic, si faccia riferimento allo schema \ref{fig:stateful_pardo_fluxdiag} e al codice sorgente disponibile esternamente. %riferimento al codice sorgente
+\svg{Charts/STATEFUL_PARDO_FLUXDIAG.pdf_tex}{Diagramma di flusso della Stateful ParDo, dopo la prima iterazione. I riquadri in verde evidenziano i momenti in cui vengono utilizzati gli stati \texttt{bufferState} e \texttt{currTimestamp}, quelli in blu evidenziano l'output dei campioni: si noti che la Return non manda alcun valore in uscita. Inizia sempre con la ricezione di una collezione di Event, costituita dall'insieme delle letture in un certo timestamp. Alla prima lettura, vengono inizializzati \texttt{currTimestamp} e \texttt{bufferState}. Se il flusso dati è gestito correttamente dal Triggering, non dovrebbe verificarsi mai o quasi mai l'ipotesi che scarta la collezione di Event ricevuti.}{fig:stateful_pardo_fluxdiag}
+\subsection{Scrittura su InfluxDB}
+Si è pensato di salvare i risultati del processamento della pipeline su InfluxDB, per eseguire dei test a lungo termine in modo di verificarne il corretto funzionamento. A tal fine è necessario realizzare una routine che permetta di salvare gli Event su un database Influx. Dato che al momento non è ancora stata implementata in Beam una trasformazione Input/Output a tale scopo \cite{onofre_2017} è necessario implementare una ParDo con le primitive di Influx per Java.
+\begin{lstlisting}
+io.writeSensors(holdEvents, options);
+\end{lstlisting}
+Tale ParDo è realizzata nella classe PubSubInflux e utilizza funzioni della libreria \texttt{org.\allowbreak influxdb.\allowbreak InfluxDB}.
+\begin{lstlisting}
+public void writeSensors(
+ PCollection<Iterable<Event>> outSensors, MyOptions options) {
+  final String influxDBURL = options.getInfluxDBURL();
+  final String influxDBuser = options.getInfluxDBuser();
+  final String influxDBpassword = 
+   options.getInfluxDBpassword();
+  final String influxDBdb = options.getInfluxDBdb();
+  final String influxDBmeasurement = 
+   options.getInfluxDBmeasurement();
+  final Logger LOG = LoggerFactory.getLogger(PubSubInflux.class);
+  outSensors.apply(
+   // logica scrittura su InfluxDB..
+  );
+}
+\end{lstlisting}
+\svg{Charts/STREAMING2.pdf_tex}{Diagramma completo della Streaming Pipeline con la Stateful Pardo realizzata allo scopo di ricampionare i segnali richiesti per la rete previsionale con la tecnica Sample and Hold.}{fig:streaming2}
+\section{Simulatore eventi}
+Al fine di testare il funzionamento della pipeline è stato realizzato un simulatore Python di eventi su PubSub. Questo legge i dati dei sensori grezzi dal database di Influx su cui è stata effettuata l'ingestione, vista nella sezione \ref{ingestion}, e li pubblica a frequenza periodica sul topic di PubSub dove la pipeline resterà in ascolto. Il timestamp degli eventi sarà mantenuto uguale a quello originale. È possibile determinare la velocità con cui il simulatore pubblicherà gli eventi, se in tempo reale o con velocità superiore. Per poter lanciato necessita dei seguenti parametri:
+\lstset{language=bash}
+\begin{lstlisting}
+ python simulator/events_simulator.py \
+--influx_host $INFLUX_HOST \
+--influx_port $INFLUX_PORT \
+--influx_user $INFLUX_USER \
+--influx_password $INFLUX_PASSWORD \
+--influx_read_db $INFLUX_DB_1 \
+--influx_read_measurement $INFLUX_M_SEGNALI_1 \
+--start_time $START_TIME \
+--end_time $END_TIME \
+--project $PROJECT \
+--speed_factor $SPEED_FACTOR \
+\end{lstlisting}
+In particolare \texttt{start\_time} determina il timestamp di inizio simulazione, \texttt{end\_time} quello di fine e \texttt{speed\_factor} il moltiplicatore di velocità. Uno \texttt{speed\_factor} di 1 avvierà una simulazione in tempo reale, a 2 andrà al doppio rispetto al tempo reale, e così via.
+\svg{Charts/SIMULATOR_FLUXDIAG.pdf_tex}{Schema logico di funzionamento del simulatore eventi sensori. Il simulatore legge da Influx i dati grezzi dei sensori per pubblicarli periodicamente secondo la velocità impostata. }{fig:simulator_fluxdiag} % il grafico andrebbe sistemato  Il funzionamento del simulatore è intuitivo: legge l'intera porzione di eventi da \texttt{start\_time} a \texttt{end\_time} in un Pandas Dataframe, %riferimento necessario
+poi li pubblica dal primo fino all'ultimo secondo la velocità impostata dal moltiplicatore \texttt{speed\_factor}.
+\section{Testing e risultati}\label{testerisultati}
+Prima di ottenere i risultati desiderati si sono effettuate lunghe sessioni di prova e modifica, in particolare per quanto riguarda i trigger, in quanto gli eventi campionati e raggruppati possono essere resi disponibili alla Stateful ParDo fuori ordine, causando quindi la perdita di buona parte dell'informazione.
+\subsection{Prova con Completeness Trigger}
+Si è provato ad utilizzare un Completeness Trigger, contando sulla previsione euristica del Watermark per l'emissione dei valori nelle finestre. Si ha quindi alla dichiarazione dei trigger dopo il Windowing:
+\lstset{language=Java}
+\begin{lstlisting}
+FixedWindows.of(samplingFrequency))
+.triggering(
+ AfterWatermark.pastEndOfWindow()   // Completeness trigger
+)                                   //              on-time
+.withAllowedLateness(allowedDelay)  // Allowed Lateness
+.discardingFiredPanes()             // Discarding
+\end{lstlisting}
+Il risultato è che le Fixed Window vengono "chiuse" fuori sequenza, avendo quindi i gruppi di campioni fuori ordine temporale.
+\img{Imgs/test1.png}{Log della sequenza di elementi emessa in ingresso alla Stateful ParDo. Il primo valore visualizzato è il timestamp della collezione: l'ordine è in buona parte sparso. Questo causa un comportamento non voluto, rendendo di fatto impossibile il ricampionamento richiesto.}{fig:testing1}
+\subsection{Sliding windows e trigger combinati}
+Si sono provate soluzioni più complesse. Nella prossima si vede l'uso di Sliding Windows al posto di Fixed Windows, in modo di raccogliere le letture di più sensori, in combinazione a trigger Unaligned Delay di 15 secondi, Completeness on-time e Late Firing a 5 minuti.
+\begin{lstlisting}
+SlidingWindows.of(SamplingInterval).every(samplingFrequency))
+.triggering(
+ AfterProcessingTime.pastFirstElementInPane()
+.plusDelayOf(samplingFrequency))) // Unaligned Delay
+.triggering(
+ AfterWatermark.pastEndOfWindow() //Completeness trigger
+ .orFinally(                      // late firing
+ AfterProcessingTime.pastFirstElementInPane()
+ .plusDelayOf(orderingInterval))
+)
+.withAllowedLateness(allowedDelay)  // Allowed Lateness
+.discardingFiredPanes()             // Discarding
+\end{lstlisting}
+Il risultato è simile a quello ottenuto in precedenza, con continui scambi fra i sample, che vengono emessi fuori ordine temporale. Probabilmente la sovrapposizione di diversi tipi di trigger non permette di ottenere il risultato desiderato, dato che non è possibile sapere \textit{a posteriori} quale fra i diversi trigger sia scattato.
+\subsection{Unaligned Delay Trigger}\label{finaltrigger}
+Per ottenere un maggiore controllo sull'ordine, si è semplificata il più possibile la composizione della Window e del trigger, riportando le finestre a fisse e includendo un solo trigger non allineato. Questo trigger, tuttavia, è stato inizialmente impostato a 5 minuti, pari a \texttt{orderingInterval}:
+\begin{lstlisting}
+FixedWindows.of(samplingFrequency))
+.triggering(Repeatedly.forever(
+AfterProcessingTime.pastFirstElementInPane()
+.plusDelayOf(orderingInterval))) // Unaligned Delay
+.withAllowedLateness(orderingInterval)  // Allowed Lateness
+.discardingFiredPanes()             // Discarding
+\end{lstlisting}
+Questo causava nuovamente una consegna fuori ordine temporale delle PCollection di Event. La soluzione finale è data dalla configurazione del trigger Unaligned Delay per scattare dopo 15 secondi rispetto al primo elemento nella finestra, ma tenendo una Allowed Lateness di 5 minuti. In questo modo si ottiene una consegna in ordine della quasi totalità degli eventi. In seguito a un test di 50 ore, si è ottenuto il ricampionamento richiesto dei dati dell'intervallo preso in considerazione.
+\img{Imgs/testres1.png}{Telemetrie grezze di un sensore in una giornata ideale di 24 ore. Si noti che i punti che costituiscono i campioni si trovano a distanze irregolari. }{fig:testres1}
+\img{Imgs/testres2.png}{Stessa telemetria ma dopo il ricampionamento. Si noti la densità maggiore dei punti che costituiscono i singoli campioni, l'andamento invece è sempre lo stesso, segno di un buon ricampionamento che mantiene l'andamento originale del segnale.}{fig:testres1}
+Nel corso di tale test, si è verificato un evento di campioni fuori ordine, che hanno causato un mancato aggiornamento dei livelli di un sottoinsieme di sensori per un minuto circa. Prendiamo in analisi uno di questi eventi.
+\img{Imgs/testlog1.png}{Log della Stateful ParDo che segnala la collezione di eventi fuori ordine.}{fig:testlog1}
+La simulazione invia segnali dalle 00:00 alle 23:59 del 16/08/2018. Il segnale che è stato ricevuto fuori ordine ha timestamp 14:35:14, mentre l'ultima collezione di letture lette dalla Stateful ParDo era delle 14:35:44. Nelle prossime due figure si vede uno dei segnali coinvolti, che dovrebbe avere un fronte di discesa a -0.846 alle 14:35. Il segnale rimane invece al livello 0.75 fino alle 14:40:15, quando sopraggiunge la successiva lettura.
+\img{Imgs/testunord1.png}{Segnale in analisi dopo un ricampionamento corretto.}{img:testunord1}
+\img{Imgs/testunord2.png}{Segnale in analisi dopo il caso critico di campione fuori ordine. Il livello del segnale persiste fino alle 14:40:15, in cui vi è una nuova lettura. }{img:testunord2}
+Considerato che il sistema è in streaming e in una giornata vi sono 1440 minuti, il livello di affidabilità si mantiene superiore al 99,9\%.
+\section{Modifiche e miglioramenti futuri}
+Questa pipeline è stata studiata e realizzata per il caso d'uso richiesto e svolge correttamente quanto richiesto per esso. Provando ad aumentare lo speed factor del simulatore a 5 volte il tempo reale o più, fenomeni di valori persi a causa del ritardo di processamento, come visto nella parte finale della sezione \ref{finaltrigger}, accadono più spesso. Questo suggerisce che se le specifiche dovessero cambiare, per esempio richiedendo l'elaborazione di un insieme significativamente più ampio di sensori, mantenendo lo stesso tempo di elaborazione, sarebbe necessario rivedere l'architettura di processamento. Si sono pensate due modifiche che si possono effettuare a questa pipeline in modo di renderla maggiormente scalabile. La prima prevede di dividere la Stateful ParDo in modo che lo stato venga mantenuto separatamente per ciascun sensore. Ciò è possibile trasformando l'ingresso in tipo \texttt{KV<String,Event>} dove la stringa è caratterizzata dal TAG della lettura del sensore di Event. Dato che le Stateful ParDo mantengono lo stato solo fra la stessa chiave e la stessa Window, la separazione dello stato avviene intrinsecamente.
+\svg{Charts/STATEFUL_UPGR1.pdf_tex}{Prima modifica proposta per la pipeline in streaming di Sample and Hold. Lo stato viene separato fra i singoli sensori, dato che il TAG è utilizzato come chiave per la Stateful ParDo.}{fig:stateful_upgr1}
+Tale modifica andrebbe a cambiare il comportamento della pipeline, dato che l'uscita non è più uniformata a livello dell'ultimo stadio. Prima infatti si aveva garanzia di ottenere simultaneamente un campione per tutto l'insieme di sensori, applicando la modifica proposta in figura \ref{fig:stateful_upgr1} si avrebbe un'uscita a intervalli differenti per ogni singolo sensore, qualora venisse mantenuto lo stesso comportamento descritto nel paragrafo  \ref{statefulimplem}. Per ottenere nuovamente un'uscita uniforme si potrebbero utilizzare i Timer delle Stateful ParDo, descritti nella sezione \ref{statefultimers}. Con un Processing Time Timer si può imporre il tempo massimo prima che l'output di ogni differente Stateful ParDo abbia luogo, in modo di ottenere una emissione sincronizzata di campioni.
+\svg{Charts/STATEFUL_UPGR3.pdf_tex}{Altra modifica proposta. Si introduce un Processing Time Timer che limita il tempo massimo trascorso prima che un output venga prodotto.}{fig_stateful_upgr2}
+Questa pipeline inoltre non gestisce la trasformazione dei dati del meteo, operazione anch'essa necessaria in tempo reale, per cui un lavoro imminente potrebbe essere quello di modificarla aggiungendo un nuovo modello di dato o affiancare la stessa con un'altra simile ma studiata per i dati del meteo.

@@ -1,0 +1,892 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.0 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\datalist[entry]{none/global//global/global}
+  \entry{aggarwal}{book}{}
+    \name{author}{1}{}{%
+      {{hash=ACC}{%
+         family={Aggarwal},
+         familyi={A\bibinitperiod},
+         given={Charu\bibnamedelima C.},
+         giveni={C\bibinitperiod\bibinitdelim C\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Springer}%
+    }
+    \strng{namehash}{ACC1}
+    \strng{fullhash}{ACC1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Neural networks and deep learning: a textbook}
+    \field{year}{2018}
+  \endentry
+
+  \entry{panzieri}{online}{}
+    \name{author}{1}{}{%
+      {{hash=PS}{%
+         family={Panzieri},
+         familyi={P\bibinitperiod},
+         given={S.},
+         giveni={S\bibinitperiod},
+      }}%
+    }
+    \name{editor}{1}{}{%
+      {{hash=UR}{%
+         family={3},
+         familyi={\bibinitperiod},
+         given={Università\bibnamedelima Roma},
+         giveni={U\bibinitperiod\bibinitdelim R\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{PS1}
+    \strng{fullhash}{PS1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{SCADA}
+    \verb{url}
+    \verb http://www.dia.uniroma3.it/autom/Reti_e_Sistemi_Automazione/PDF/9NSCA
+    \verb DA. pdf
+    \endverb
+    \field{year}{2015}
+  \endentry
+
+  \entry{witten}{book}{}
+    \name{author}{1}{}{%
+      {{hash=IWEF}{%
+         family={I.H\bibnamedelima Witten},
+         familyi={I\bibinitperiod\bibinitdelim W\bibinitperiod},
+         given={Eibe\bibnamedelima Frank},
+         giveni={E\bibinitperiod\bibinitdelim F\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Morgan Kaufmann}%
+    }
+    \strng{namehash}{IWEF1}
+    \strng{fullhash}{IWEF1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Data mining: practical machine learning tools and techniques}
+    \field{year}{2017}
+  \endentry
+
+  \entry{imagenet}{article}{}
+    \true{moreauthor}
+    \name{author}{10}{}{%
+      {{hash=RO}{%
+         family={Russakovsky},
+         familyi={R\bibinitperiod},
+         given={Olga},
+         giveni={O\bibinitperiod},
+      }}%
+      {{hash=DJ}{%
+         family={Deng},
+         familyi={D\bibinitperiod},
+         given={Jia},
+         giveni={J\bibinitperiod},
+      }}%
+      {{hash=SH}{%
+         family={Su},
+         familyi={S\bibinitperiod},
+         given={Hao},
+         giveni={H\bibinitperiod},
+      }}%
+      {{hash=KJ}{%
+         family={Krause},
+         familyi={K\bibinitperiod},
+         given={Jonathan},
+         giveni={J\bibinitperiod},
+      }}%
+      {{hash=SS}{%
+         family={Satheesh},
+         familyi={S\bibinitperiod},
+         given={Sanjeev},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=MS}{%
+         family={Ma},
+         familyi={M\bibinitperiod},
+         given={Sean},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=HZ}{%
+         family={Huang},
+         familyi={H\bibinitperiod},
+         given={Zhiheng},
+         giveni={Z\bibinitperiod},
+      }}%
+      {{hash=KA}{%
+         family={Karpathy},
+         familyi={K\bibinitperiod},
+         given={Andrej},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=KA}{%
+         family={Khosla},
+         familyi={K\bibinitperiod},
+         given={Aditya},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=BM}{%
+         family={Bernstein},
+         familyi={B\bibinitperiod},
+         given={Michael},
+         giveni={M\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Springer}%
+    }
+    \strng{namehash}{RODJSH+1}
+    \strng{fullhash}{RODJSHKJSSMSHZKAKABM+1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{number}{3}
+    \field{pages}{211\bibrangedash 252}
+    \field{title}{Imagenet large scale visual recognition challenge}
+    \field{volume}{115}
+    \field{journaltitle}{International journal of computer vision}
+    \field{year}{2015}
+  \endentry
+
+  \entry{hochreiter}{article}{}
+    \name{author}{2}{}{%
+      {{hash=HS}{%
+         family={Hochreiter},
+         familyi={H\bibinitperiod},
+         given={Sepp},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=SJ}{%
+         family={Schmidhuber},
+         familyi={S\bibinitperiod},
+         given={J{\"u}rgen},
+         giveni={J\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {MIT Press}%
+    }
+    \strng{namehash}{HSSJ1}
+    \strng{fullhash}{HSSJ1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{number}{8}
+    \field{pages}{1735\bibrangedash 1780}
+    \field{title}{Long short-term memory}
+    \field{volume}{9}
+    \field{journaltitle}{Neural computation}
+    \field{year}{1997}
+  \endentry
+
+  \entry{colah}{online}{}
+    \name{author}{1}{}{%
+      {{hash=OC}{%
+         family={Olah},
+         familyi={O\bibinitperiod},
+         given={C.},
+         giveni={C\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{OC1}
+    \strng{fullhash}{OC1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Understanding LSTM Networks}
+    \verb{url}
+    \verb https://colah.github.io/posts/2015-08-Understanding-LSTMs/
+    \endverb
+    \field{month}{08}
+    \field{year}{2015}
+  \endentry
+
+  \entry{sutskever}{inproceedings}{}
+    \name{author}{3}{}{%
+      {{hash=SI}{%
+         family={Sutskever},
+         familyi={S\bibinitperiod},
+         given={Ilya},
+         giveni={I\bibinitperiod},
+      }}%
+      {{hash=VO}{%
+         family={Vinyals},
+         familyi={V\bibinitperiod},
+         given={Oriol},
+         giveni={O\bibinitperiod},
+      }}%
+      {{hash=LQV}{%
+         family={Le},
+         familyi={L\bibinitperiod},
+         given={Quoc\bibnamedelima V},
+         giveni={Q\bibinitperiod\bibinitdelim V\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{SIVOLQV1}
+    \strng{fullhash}{SIVOLQV1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{booktitle}{Advances in neural information processing systems}
+    \field{pages}{3104\bibrangedash 3112}
+    \field{title}{Sequence to sequence learning with neural networks}
+    \field{year}{2014}
+  \endentry
+
+  \entry{leguennec}{inproceedings}{}
+    \name{author}{3}{}{%
+      {{hash=LGA}{%
+         family={Le\bibnamedelima Guennec},
+         familyi={L\bibinitperiod\bibinitdelim G\bibinitperiod},
+         given={Arthur},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=MS}{%
+         family={Malinowski},
+         familyi={M\bibinitperiod},
+         given={Simon},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=TR}{%
+         family={Tavenard},
+         familyi={T\bibinitperiod},
+         given={Romain},
+         giveni={R\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{LGAMSTR1}
+    \strng{fullhash}{LGAMSTR1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{booktitle}{ECML/PKDD workshop on advanced analytics and learning on
+  temporal data}
+    \field{title}{Data augmentation for time series classification using
+  convolutional neural networks}
+    \field{year}{2016}
+  \endentry
+
+  \entry{giuliacci_giuliacci_corazzon_2010}{book}{}
+    \name{author}{3}{}{%
+      {{hash=GM}{%
+         family={Giuliacci},
+         familyi={G\bibinitperiod},
+         given={Mario},
+         giveni={M\bibinitperiod},
+      }}%
+      {{hash=GA}{%
+         family={Giuliacci},
+         familyi={G\bibinitperiod},
+         given={Andrea},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=CP}{%
+         family={Corazzon},
+         familyi={C\bibinitperiod},
+         given={Paolo},
+         giveni={P\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Alpha Test}%
+    }
+    \strng{namehash}{GMGACP1}
+    \strng{fullhash}{GMGACP1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Manuale di meteorologia}
+    \field{year}{2010}
+  \endentry
+
+  \entry{kimball_ross_2013}{book}{}
+    \name{author}{2}{}{%
+      {{hash=KR}{%
+         family={Kimball},
+         familyi={K\bibinitperiod},
+         given={Ralph},
+         giveni={R\bibinitperiod},
+      }}%
+      {{hash=RM}{%
+         family={Ross},
+         familyi={R\bibinitperiod},
+         given={Margy},
+         giveni={M\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Wiley}%
+    }
+    \strng{namehash}{KRRM1}
+    \strng{fullhash}{KRRM1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{The data warehouse toolkit: the Definitive Guide to
+  Dimensional Modeling}
+    \field{year}{2013}
+  \endentry
+
+  \entry{kefauver_patschke_2007}{book}{}
+    \name{author}{2}{}{%
+      {{hash=KAP}{%
+         family={Kefauver},
+         familyi={K\bibinitperiod},
+         given={Alan\bibnamedelima P.},
+         giveni={A\bibinitperiod\bibinitdelim P\bibinitperiod},
+      }}%
+      {{hash=PD}{%
+         family={Patschke},
+         familyi={P\bibinitperiod},
+         given={David},
+         giveni={D\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {A-R Editions}%
+    }
+    \strng{namehash}{KAPPD1}
+    \strng{fullhash}{KAPPD1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Fundamentals of digital audio}
+    \field{year}{2007}
+  \endentry
+
+  \entry{calandrino_chiani_2002}{book}{}
+    \name{author}{2}{}{%
+      {{hash=CL}{%
+         family={Calandrino},
+         familyi={C\bibinitperiod},
+         given={Leonardo},
+         giveni={L\bibinitperiod},
+      }}%
+      {{hash=CM}{%
+         family={Chiani},
+         familyi={C\bibinitperiod},
+         given={Marco},
+         giveni={M\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Pitagora}%
+    }
+    \strng{namehash}{CLCM1}
+    \strng{fullhash}{CLCM1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Quaderni di comunicazioni elettriche}
+    \field{year}{2002}
+  \endentry
+
+  \entry{ross_2014}{book}{}
+    \name{author}{1}{}{%
+      {{hash=RSM}{%
+         family={Ross},
+         familyi={R\bibinitperiod},
+         given={Sheldon\bibnamedelima M.},
+         giveni={S\bibinitperiod\bibinitdelim M\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Maggioli}%
+    }
+    \strng{namehash}{RSM1}
+    \strng{fullhash}{RSM1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Introduzione alla statistica}
+    \field{year}{2014}
+  \endentry
+
+  \entry{wikipedia_2019}{misc}{}
+    \list{publisher}{1}{%
+      {Wikimedia Foundation}%
+    }
+    \field{labeltitlesource}{title}
+    \field{title}{Regola del trapezio}
+    \verb{url}
+    \verb https://it.wikipedia.org/wiki/Regola_del_trapezio
+    \endverb
+    \field{journaltitle}{Wikipedia}
+    \field{year}{2019}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{wei_1990}{book}{}
+    \name{author}{1}{}{%
+      {{hash=WWWS}{%
+         family={Wei},
+         familyi={W\bibinitperiod},
+         given={William W.\bibnamedelima S.},
+         giveni={W\bibinitperiod\bibinitdelim W\bibinitperiod\bibinitdelim
+  S\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Pearson}%
+    }
+    \strng{namehash}{WWWS1}
+    \strng{fullhash}{WWWS1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Time series analysis univariate and multivariate methods}
+    \field{year}{1990}
+  \endentry
+
+  \entry{kemker2018measuring}{inproceedings}{}
+    \name{author}{5}{}{%
+      {{hash=KR}{%
+         family={Kemker},
+         familyi={K\bibinitperiod},
+         given={Ronald},
+         giveni={R\bibinitperiod},
+      }}%
+      {{hash=MM}{%
+         family={McClure},
+         familyi={M\bibinitperiod},
+         given={Marc},
+         giveni={M\bibinitperiod},
+      }}%
+      {{hash=AA}{%
+         family={Abitino},
+         familyi={A\bibinitperiod},
+         given={Angelina},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=HTL}{%
+         family={Hayes},
+         familyi={H\bibinitperiod},
+         given={Tyler\bibnamedelima L},
+         giveni={T\bibinitperiod\bibinitdelim L\bibinitperiod},
+      }}%
+      {{hash=KC}{%
+         family={Kanan},
+         familyi={K\bibinitperiod},
+         given={Christopher},
+         giveni={C\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{KRMMAA+1}
+    \strng{fullhash}{KRMMAAHTLKC1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{booktitle}{Thirty-second AAAI conference on artificial intelligence}
+    \field{title}{Measuring catastrophic forgetting in neural networks}
+    \field{year}{2018}
+  \endentry
+
+  \entry{chung2017ubershuffle}{article}{}
+    \name{author}{5}{}{%
+      {{hash=CJ}{%
+         family={Chung},
+         familyi={C\bibinitperiod},
+         given={Jichan},
+         giveni={J\bibinitperiod},
+      }}%
+      {{hash=LK}{%
+         family={Lee},
+         familyi={L\bibinitperiod},
+         given={Kangwook},
+         giveni={K\bibinitperiod},
+      }}%
+      {{hash=PR}{%
+         family={Pedarsani},
+         familyi={P\bibinitperiod},
+         given={Ramtin},
+         giveni={R\bibinitperiod},
+      }}%
+      {{hash=PD}{%
+         family={Papailiopoulos},
+         familyi={P\bibinitperiod},
+         given={Dimitris},
+         giveni={D\bibinitperiod},
+      }}%
+      {{hash=RK}{%
+         family={Ramchandran},
+         familyi={R\bibinitperiod},
+         given={Kannan},
+         giveni={K\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{CJLKPR+1}
+    \strng{fullhash}{CJLKPRPDRK1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Ubershuffle: Communication-efficient data shuffling for sgd
+  via coding theory}
+    \field{journaltitle}{Advances in NIPS}
+    \field{year}{2017}
+  \endentry
+
+  \entry{pickle}{misc}{}
+    \field{labeltitlesource}{title}
+    \field{title}{pickle - Python object serialization}
+    \verb{url}
+    \verb https://docs.python.org/3/library/pickle.html
+    \endverb
+    \field{journaltitle}{pickle - Python object serialization - Python 3.7.3
+  documentation}
+  \endentry
+
+  \entry{white_2012}{book}{}
+    \name{author}{1}{}{%
+      {{hash=WTE}{%
+         family={White},
+         familyi={W\bibinitperiod},
+         given={Tom\bibnamedelima E.},
+         giveni={T\bibinitperiod\bibinitdelim E\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Yahoo Press}%
+    }
+    \strng{namehash}{WTE1}
+    \strng{fullhash}{WTE1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Hadoop: The Definitive Guide}
+    \field{year}{2012}
+  \endentry
+
+  \entry{apachebeam}{misc}{}
+    \list{publisher}{1}{%
+      {Apache Software Foundation}%
+    }
+    \field{labeltitlesource}{title}
+    \field{title}{Apache Beam Programming Guide}
+    \verb{url}
+    \verb https://beam.apache.org/documentation/programming-guide/#creating-a-p
+    \verb ipeline
+    \endverb
+    \field{journaltitle}{Apache Beam}
+  \endentry
+
+  \entry{numpyrandomstate}{misc}{}
+    \field{labeltitlesource}{title}
+    \field{title}{numpy.random.RandomState}
+    \verb{url}
+    \verb https://docs.scipy.org/doc/numpy/reference/generated/numpy.random.Ran
+    \verb domState.html
+    \endverb
+    \field{journaltitle}{numpy.random.RandomState - NumPy v1.16 Manual}
+  \endentry
+
+  \entry{tensorflow}{misc}{}
+    \field{labeltitlesource}{title}
+    \field{title}{Using TFRecords and tf.Example | TensorFlow Core |
+  TensorFlow}
+    \verb{url}
+    \verb https://www.tensorflow.org/tutorials/load_data/tf_records
+    \endverb
+    \field{journaltitle}{TensorFlow}
+  \endentry
+
+  \entry{flovik_flovik_2018}{misc}{}
+    \name{author}{2}{}{%
+      {{hash=FV}{%
+         family={Flovik},
+         familyi={F\bibinitperiod},
+         given={Vegard},
+         giveni={V\bibinitperiod},
+      }}%
+      {{hash=FV}{%
+         family={Flovik},
+         familyi={F\bibinitperiod},
+         given={Vegard},
+         giveni={V\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Towards Data Science}%
+    }
+    \strng{namehash}{FVFV1}
+    \strng{fullhash}{FVFV1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{How (not) to use Machine Learning for time series
+  forecasting: Avoiding the pitfalls}
+    \verb{url}
+    \verb https://towardsdatascience.com/how-not-to-use-machine-learning-for-ti
+    \verb me-series-forecasting-avoiding-the-pitfalls-19f9d7adf424
+    \endverb
+    \field{journaltitle}{Towards Data Science}
+    \field{year}{2018}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{akidauchernyaklax}{book}{}
+    \name{author}{3}{}{%
+      {{hash=AT}{%
+         family={Akidau},
+         familyi={A\bibinitperiod},
+         given={Tyler},
+         giveni={T\bibinitperiod},
+      }}%
+      {{hash=CS}{%
+         family={Chernyak},
+         familyi={C\bibinitperiod},
+         given={Slava},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=LR}{%
+         family={Lax},
+         familyi={L\bibinitperiod},
+         given={Reuven},
+         giveni={R\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {OReilly}%
+    }
+    \strng{namehash}{ATCSLR1}
+    \strng{fullhash}{ATCSLR1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Streaming systems: the what, where, when, and how of
+  large-scale data processing}
+    \field{year}{2018}
+  \endentry
+
+  \entry{coulouris_2012}{book}{}
+    \name{author}{1}{}{%
+      {{hash=CGF}{%
+         family={Coulouris},
+         familyi={C\bibinitperiod},
+         given={George\bibnamedelima F.},
+         giveni={G\bibinitperiod\bibinitdelim F\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Addison-Wesley / Pearson Education Ltd.}%
+    }
+    \strng{namehash}{CGF1}
+    \strng{fullhash}{CGF1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Distributed systems concepts and design}
+    \field{year}{2012}
+  \endentry
+
+  \entry{akidau_chernyak_lax_2018}{misc}{}
+    \name{author}{3}{}{%
+      {{hash=AT}{%
+         family={Akidau},
+         familyi={A\bibinitperiod},
+         given={Tyler},
+         giveni={T\bibinitperiod},
+      }}%
+      {{hash=CS}{%
+         family={Chernyak},
+         familyi={C\bibinitperiod},
+         given={Slava},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=LR}{%
+         family={Lax},
+         familyi={L\bibinitperiod},
+         given={Reuven},
+         giveni={R\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{ATCSLR1}
+    \strng{fullhash}{ATCSLR1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Figures: Streaming Systems Book}
+    \verb{url}
+    \verb http://streamingbook.net/fig
+    \endverb
+    \field{journaltitle}{Streaming Systems Book}
+    \field{year}{2018}
+  \endentry
+
+  \entry{knowles_2017_timely}{misc}{}
+    \name{author}{1}{}{%
+      {{hash=KK}{%
+         family={Knowles},
+         familyi={K\bibinitperiod},
+         given={Kenneth},
+         giveni={K\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Apache Software Foundation}%
+    }
+    \strng{namehash}{KK1}
+    \strng{fullhash}{KK1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{Timely (and Stateful) Processing with Apache Beam}
+    \verb{url}
+    \verb https://beam.apache.org/blog/2017/08/28/timely-processing.html
+    \endverb
+    \field{journaltitle}{Apache Beam}
+    \field{year}{2017}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{beam2687}{misc}{}
+    \name{author}{1}{}{%
+      {{hash=AA}{%
+         family={Altay},
+         familyi={A\bibinitperiod},
+         given={Ahmet},
+         giveni={A\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Apache Software Foundation}%
+    }
+    \strng{namehash}{AA1}
+    \strng{fullhash}{AA1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{[BEAM-2687] Python SDK support for Stateful Processing}
+    \verb{url}
+    \verb https://issues.apache.org/jira/browse/BEAM-2687
+    \endverb
+    \field{journaltitle}{Apache Beam}
+    \field{year}{2017}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{beam4594}{misc}{}
+    \name{author}{1}{}{%
+      {{hash=CC}{%
+         family={Chen},
+         familyi={C\bibinitperiod},
+         given={Charles},
+         giveni={C\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Apache Software Foundation}%
+    }
+    \strng{namehash}{CC1}
+    \strng{fullhash}{CC1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{[BEAM-4594] Implement Beam Python User State and Timer API}
+    \verb{url}
+    \verb https://issues.apache.org/jira/browse/BEAM-4594
+    \endverb
+    \field{journaltitle}{Apache Beam}
+    \field{year}{2019}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{shannon_mark_2014}{misc}{}
+    \name{author}{1}{}{%
+      {{hash=SM}{%
+         family={Shannon},
+         familyi={S\bibinitperiod},
+         given={Mark},
+         giveni={M\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{SM1}
+    \strng{fullhash}{SM1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{PEP 484 -- Type Hints}
+    \verb{url}
+    \verb https://www.python.org/dev/peps/pep-0484/
+    \endverb
+    \field{journaltitle}{Python.org}
+    \field{year}{2014}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{beam7035}{misc}{}
+    \name{author}{1}{}{%
+      {{hash=KR}{%
+         family={Kumar},
+         familyi={K\bibinitperiod},
+         given={Rakesh},
+         giveni={R\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Apache Software Foundation}%
+    }
+    \strng{namehash}{KR1}
+    \strng{fullhash}{KR1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{[BEAM-7035] Clear() method of OutputTimer is inconsistent}
+    \verb{url}
+    \verb https://issues.apache.org/jira/browse/BEAM-7035
+    \endverb
+    \field{journaltitle}{Apache Beam}
+    \field{year}{2019}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{martin2000design}{article}{}
+    \name{author}{1}{}{%
+      {{hash=MRC}{%
+         family={Martin},
+         familyi={M\bibinitperiod},
+         given={Robert\bibnamedelima C},
+         giveni={R\bibinitperiod\bibinitdelim C\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{MRC1}
+    \strng{fullhash}{MRC1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{number}{34}
+    \field{pages}{597}
+    \field{title}{Design principles and design patterns}
+    \field{volume}{1}
+    \field{journaltitle}{Object Mentor}
+    \field{year}{2000}
+  \endentry
+
+  \entry{onofre_2017}{misc}{}
+    \name{author}{1}{}{%
+      {{hash=OJB}{%
+         family={Onofré},
+         familyi={O\bibinitperiod},
+         given={Jean-Baptiste},
+         giveni={J\bibinithyphendelim B\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Apache Software Foundation}%
+    }
+    \strng{namehash}{OJB1}
+    \strng{fullhash}{OJB1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{title}{[BEAM-2546] Create InfluxDbIO - ASF JIRA}
+    \verb{url}
+    \verb https://issues.apache.org/jira/browse/BEAM-2546
+    \endverb
+    \field{journaltitle}{Apache Beam}
+    \field{year}{2017}
+    \warn{\item Invalid format of field 'month'}
+  \endentry
+
+  \entry{python2sunsetting}{misc}{}
+    \field{labeltitlesource}{title}
+    \field{title}{Moving to require Python 3}
+    \verb{url}
+    \verb https://python3statement.org/
+    \endverb
+    \field{journaltitle}{Sunsetting Python 2 support}
+  \endentry
+\enddatalist
+\endinput
